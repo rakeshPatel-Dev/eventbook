@@ -1,7 +1,7 @@
 import type { Server } from 'node:http';
 import { createApp } from './app.js';
 import { loadConfig } from './config.js';
-import { createPool } from './db.js';
+import { createPool } from './db/pool.js';
 
 const config = loadConfig();
 const app = createApp(config.frontendOrigin);
