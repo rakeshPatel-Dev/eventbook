@@ -26,6 +26,12 @@ Foundation-stage constraints (must not be violated by later steps):
 - `npm run db:init` applies `database/schema.sql` via `src/db/apply-schema.ts`;
   `npm run db:seed` loads deterministic development data via `database/seed.ts`
   (repeatable upserts, bcrypt-hashed passwords, production guard).
+- Auth (`src/auth/`): opaque 256-bit session tokens in one `HttpOnly` cookie
+  (`eventbook_session`, 7-day expiry, `Secure` in production, configurable
+  `SameSite`); only SHA-256 hashes reach PostgreSQL. `requireAuth` loads the
+  user from the live session, `requireAdmin` enforces the database role, and
+  browser POSTs to auth endpoints pass an `Origin` check against
+  `FRONTEND_ORIGIN`. CORS allows credentials for that origin only.
 - `GET /api/health` reports API liveness without touching the database.
 - JSON parsing, 404 handler, and error handler are configured in `src/app.ts`.
 - `src/index.ts` owns HTTP startup and graceful shutdown

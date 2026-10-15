@@ -8,6 +8,8 @@ Full-stack event booking application (foundation). npm workspaces monorepo.
 - `apps/api`: Express + TypeScript + `pg` connection pool. Sole database client.
 - `apps/api/src/db/pool.ts`: PostgreSQL connection-pool factory.
 - `apps/api/src/db/apply-schema.ts`: applies `database/schema.sql` (`npm run db:init`).
+- `apps/api/src/auth/`: sessions, cookies, password hashing, validation,
+  `requireAuth`/`requireAdmin` middleware, auth routes, backend tests.
 - `database/schema.sql`: full PostgreSQL schema (users, events, bookings, sessions).
 - `database/seed.ts`: repeatable development seed (`npm run db:seed`).
 - `docs/architecture.md`: enforced constraints and runtime topology.
@@ -48,7 +50,54 @@ npm run build:api
 npm run typecheck:web
 npm run typecheck:api
 npm run format:check    # prettier check (no changes)
+npm test                # backend auth tests (needs TEST_DATABASE_URL, see below)
 ```
+
+## Authentication
+
+Opaque 256-bit session tokens (`crypto.randomBytes(32)`), never JWTs. The raw
+token travels only in an `HttpOnly` cookie; PostgreSQL stores just its SHA-256
+hex hash with a 7-day expiry. Passwords use bcrypt (cost 10, same as the seed).
+
+Endpoints (all JSON, error shape `{ "error": "..." }`):
+
+```bash
+POST /api/auth/register  # {email, password} → 201 {user}, sets cookie (auto-login)
+                         # role is ignored, always 'user'; duplicate → 409
+POST /api/auth/login     # {email, password} → 200 {user}, sets cookie
+                         # unknown or wrong → 401 {error: 'Invalid email or password.'}
+POST /api/auth/logout    # → 200 {status: 'ok'}, revokes session, clears cookie
+GET  /api/auth/me        # → 200 {user} or 401; user = {id, email, role, createdAt, updatedAt}
+```
+
+`password_hash` and session tokens never appear in responses or logs.
+
+Cookies and CORS: cookie `eventbook_session`, `HttpOnly`, `Path=/`, 7-day
+`Max-Age`, `Secure` in production (`NODE_ENV=production`), `SameSite`
+from `COOKIE_SAMESITE` (default `lax`, good for `localhost`; use `none` for
+cross-site production hosting, which requires HTTPS). CORS allows credentials
+only for the exact `FRONTEND_ORIGIN` (never `*`). Browser POSTs to auth
+endpoints additionally pass an `Origin` check against `FRONTEND_ORIGIN`
+(simple CSRF mitigation alongside `SameSite`; curl/Postman send no `Origin`
+and are unaffected). The frontend sends `credentials: 'include'` and never
+touches browser storage for tokens.
+
+Backend tests (`apps/api/src/auth/auth.test.ts`, `node:test` + `fetch`, zero
+new dependencies, real database — nothing mocked except the Express
+req/res objects for the `requireAdmin` unit check):
+
+```bash
+createdb eventbook_test
+TEST_DATABASE_URL=postgresql://postgres@localhost:5432/eventbook_test npm test
+```
+
+Tests apply `schema.sql` themselves and truncate tables between cases. Never
+point `TEST_DATABASE_URL` at production or real data.
+
+Deployment limits: cross-site hosting (e.g. Vercel frontend + Render/Railway
+API) needs `COOKIE_SAMESITE=none`, `NODE_ENV=production` (for `Secure`), and
+`FRONTEND_ORIGIN` set to the exact public frontend URL. `SameSite=None`
+cookies require HTTPS on both sides.
 
 ## Database
 
@@ -121,12 +170,13 @@ Rule split — enforced by PostgreSQL vs. backend transactions (later stage):
 
 ## Environment
 
-| Variable              | App | Purpose                                                 |
-| --------------------- | --- | ------------------------------------------------------- |
-| `DATABASE_URL`        | api | Supabase Postgres connection string (backend only)      |
-| `FRONTEND_ORIGIN`     | api | Exact allowed CORS origin, e.g. `http://localhost:3000` |
-| `PORT`                | api | API port, default `4000`                                |
-| `NEXT_PUBLIC_API_URL` | web | Public Express base URL, e.g. `http://localhost:4000`   |
+| Variable              | App | Purpose                                                                  |
+| --------------------- | --- | ------------------------------------------------------------------------ |
+| `DATABASE_URL`        | api | Supabase Postgres connection string (backend only)                       |
+| `FRONTEND_ORIGIN`     | api | Exact allowed CORS origin, e.g. `http://localhost:3000`                  |
+| `COOKIE_SAMESITE`     | api | `lax` (default), `strict`, or `none` (cross-site prod only, needs HTTPS) |
+| `NODE_ENV`            | api | `production` enables `Secure` cookies; anything else means local HTTP    |
+| `PORT`                | api | API port, default `4000`                                                 |
+| `NEXT_PUBLIC_API_URL` | web | Public Express base URL, e.g. `http://localhost:4000`                    |
 
-Login/logout endpoints and auth middleware belong to a later stage; only the
-`sessions` table exists so far. No secrets are committed (`.env` is ignored).
+No secrets are committed (`.env` is ignored).
