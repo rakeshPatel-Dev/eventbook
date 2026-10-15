@@ -138,19 +138,17 @@ never accept `role='admin'`. The demo user exists so ownership and
 authorization can be tested (each holds bookings the other must not touch).
 
 Production seeding is a separate path: with `NODE_ENV=production` it requires
-both `ALLOW_PRODUCTION_SEED=true` and a strong `SEED_ADMIN_PASSWORD` (min 12
-chars, upper/lowercase + digit), bootstraps the admin only with no demo data,
-and never logs the password. The local credentials above must never be used
-in production.
+a strong `SEED_ADMIN_PASSWORD` (min 12 chars, upper/lowercase + digit),
+bootstraps the admin only with no demo data, and never logs the password.
+The local credentials above must never be used in production.
 
 Seed events (dates are relative to seed time): an upcoming 200-seat meetup,
 an upcoming 3-seat workshop that is nearly full (2 confirmed, 1 seat left),
 an upcoming concert at another venue, and a past event with a historical
 booking. Seed bookings demonstrate confirmed and cancelled statuses,
 including a cancelled-then-rebooked pair with explicit chronology (older
-cancelled `created_at`, newer confirmed `created_at`). Every seed run ends
-with an integrity check that fails if any event's capacity sits below its
-confirmed bookings; the whole seed is one atomic transaction.
+cancelled `created_at`, newer confirmed `created_at`). The whole seed runs
+in one atomic transaction with rollback on any error.
 
 Event deletion policy: events with any booking history (even cancelled) and
 users with bookings/sessions cannot be deleted (`ON DELETE RESTRICT`). The

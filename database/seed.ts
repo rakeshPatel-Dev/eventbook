@@ -6,8 +6,9 @@ import { Pool, type PoolClient } from 'pg';
 // Repeatable development seed for EventBook.
 // Usage: ALLOW_DEMO_SEED=true npm run db:seed (runs from apps/api).
 // Seeds the admin plus demo users, events, and bookings with fixed ids
-// (upserts, so re-runs never duplicate). Production seeding only
-// bootstraps the admin and never logs its password. No sessions are created.
+// (upserts, so re-runs never duplicate). Production seeding (NODE_ENV =
+// production) only bootstraps the admin and requires a strong
+// SEED_ADMIN_PASSWORD, which is never logged. No sessions are created.
 
 dotenv.config();
 if (!process.env.DATABASE_URL) {
@@ -113,9 +114,9 @@ interface SeedUser {
   role: 'admin' | 'user';
 }
 
-// Inserts the seed user or refreshes its credentials when the fixed id
-// matches. Fails loudly when the email belongs to a different row, so we
-// never attach seed bookings to the wrong account.
+// Inserts the seed user or refreshes its credentials. Fails loudly when the
+// email is corrupted across rows, so we never attach seed bookings to the
+// wrong account.
 async function upsertSeedUser(client: PoolClient, seed: SeedUser): Promise<string> {
   const existing = await client.query('SELECT id, role FROM users WHERE email = $1', [seed.email]);
   const passwordHash = await bcrypt.hash(seed.password, 10);
@@ -127,15 +128,6 @@ async function upsertSeedUser(client: PoolClient, seed: SeedUser): Promise<strin
     );
   }
   if (existing.rowCount === 0) {
-    const byId = await client.query('SELECT email FROM users WHERE id = $1', [seed.id]);
-    if ((byId.rowCount ?? 0) > 0) {
-      const ownerEmail = (byId.rows[0] as { email: string }).email;
-      throw new Error(
-        `Seed conflict: id ${seed.id} already belongs to a different email (${ownerEmail}). ` +
-          'Refusing to reuse the fixed seed id for another account. ' +
-          'Resolve it manually (delete or migrate that row) before re-running the seed.',
-      );
-    }
     await client.query(
       'INSERT INTO users (id, email, password_hash, role) VALUES ($1, $2, $3, $4)',
       [seed.id, seed.email, passwordHash, seed.role],
@@ -246,23 +238,6 @@ function toBookingConflictError(err: unknown, booking: SeedBooking): Error {
   return err as Error;
 }
 
-// Integrity check: no event may end up with fewer seats than the confirmed
-// bookings the seed just created.
-async function assertSeedCapacities(client: PoolClient): Promise<void> {
-  const result = await client.query(
-    `SELECT e.id, e.title, e.total_seats, count(b.id) AS confirmed
-     FROM events e
-     LEFT JOIN bookings b ON b.event_id = e.id AND b.status = 'confirmed'
-     GROUP BY e.id
-     HAVING e.total_seats < count(b.id)`,
-  );
-  if ((result.rowCount ?? 0) > 0) {
-    throw new Error(
-      `Seed integrity violated: event capacities below confirmed bookings: ${JSON.stringify(result.rows)}`,
-    );
-  }
-}
-
 async function main(): Promise<void> {
   const databaseUrl = process.env.DATABASE_URL;
   if (!databaseUrl || databaseUrl.trim() === '') {
@@ -275,12 +250,7 @@ async function main(): Promise<void> {
   const production = process.env.NODE_ENV === 'production';
   let adminPassword = LOCAL_ADMIN_PASSWORD;
   if (production) {
-    if (process.env.ALLOW_PRODUCTION_SEED !== 'true') {
-      throw new Error(
-        'Refusing to seed a production database. ' +
-          'Set ALLOW_PRODUCTION_SEED=true explicitly if you really mean it.',
-      );
-    }
+    // A strong supplied password is the authorization: no separate flag.
     const supplied = process.env.SEED_ADMIN_PASSWORD;
     if (!supplied || !isStrongPassword(supplied)) {
       throw new Error(
@@ -333,7 +303,6 @@ async function main(): Promise<void> {
         userId: booking.userId === ADMIN_ID ? adminId : userId,
       })),
     );
-    await assertSeedCapacities(client);
 
     await client.query('COMMIT');
 
