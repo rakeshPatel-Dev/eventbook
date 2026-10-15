@@ -21,8 +21,11 @@ Foundation-stage constraints (must not be violated by later steps):
 - Env is loaded from the API app environment (`apps/api/.env`) and
   validated on startup (`src/config.ts`). Missing `DATABASE_URL` or
   `FRONTEND_ORIGIN` fails fast.
-- `pg` connection pool is created in `src/db.ts`; no queries are
-  implemented in the foundation.
+- `pg` connection pool is created in `src/db/pool.ts`; queries use
+  parameterized SQL, no ORM.
+- `npm run db:init` applies `database/schema.sql` via `src/db/apply-schema.ts`;
+  `npm run db:seed` loads deterministic development data via `database/seed.ts`
+  (repeatable upserts, bcrypt-hashed passwords, production guard).
 - `GET /api/health` reports API liveness without touching the database.
 - JSON parsing, 404 handler, and error handler are configured in `src/app.ts`.
 - `src/index.ts` owns HTTP startup and graceful shutdown
