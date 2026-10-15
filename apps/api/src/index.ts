@@ -4,8 +4,12 @@ import { loadConfig } from './config.js';
 import { createPool } from './db/pool.js';
 
 const config = loadConfig();
-const app = createApp(config.frontendOrigin);
 const pool = createPool(config.databaseUrl);
+const app = createApp({
+  pool,
+  frontendOrigin: config.frontendOrigin,
+  cookie: { sameSite: config.cookieSameSite, secure: config.isProduction },
+});
 
 const server: Server = app.listen(config.port, () => {
   console.log(`API listening on port ${config.port}`);
