@@ -1,0 +1,3 @@
+-- EventBook PostgreSQL schema (placeholder).
+-- The schema will be defined in a later step. This file intentionally
+-- contains no tables yet.

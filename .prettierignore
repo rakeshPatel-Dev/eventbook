@@ -1,0 +1,14 @@
+node_modules/
+apps/web/.next/
+apps/web/out/
+apps/api/dist/
+dist/
+build/
+coverage/
+.nyc_output/
+*.tsbuildinfo
+package-lock.json
+pnpm-lock.yaml
+yarn.lock
+next-env.d.ts
+.next/
