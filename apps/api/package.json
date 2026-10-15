@@ -10,7 +10,7 @@
     "typecheck": "tsc --noEmit",
     "db:init": "tsx src/db/apply-schema.ts",
     "db:seed": "tsx ../../database/seed.ts",
-    "test": "tsx src/auth/auth.test.ts"
+    "test": "tsx src/auth/auth.test.ts && tsx src/events/events.test.ts && tsx src/bookings/bookings.test.ts"
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",

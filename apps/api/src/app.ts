@@ -2,6 +2,8 @@ import cors from 'cors';
 import express, { type NextFunction, type Request, type Response } from 'express';
 import type { Pool } from 'pg';
 import { createAuthRouter } from './auth/routes.js';
+import { createBookingsRouter } from './bookings/routes.js';
+import { createEventsRouter } from './events/routes.js';
 import type { CookieConfig } from './auth/cookies.js';
 
 export interface AppOptions {
@@ -29,6 +31,8 @@ export function createApp(options: AppOptions): express.Express {
   });
 
   app.use('/api/auth', createAuthRouter({ pool, cookie, frontendOrigin }));
+  app.use('/api/events', createEventsRouter({ pool, frontendOrigin }));
+  app.use('/api/bookings', createBookingsRouter({ pool, frontendOrigin }));
 
   app.use((_req: Request, res: Response) => {
     res.status(404).json({ error: 'Not Found' });
