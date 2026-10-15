@@ -32,6 +32,11 @@ Foundation-stage constraints (must not be violated by later steps):
   user from the live session, `requireAdmin` enforces the database role, and
   browser POSTs to auth endpoints pass an `Origin` check against
   `FRONTEND_ORIGIN`. CORS allows credentials for that origin only.
+- Events (`src/events/`) and bookings (`src/bookings/`): public upcoming
+  list with search/pagination and derived `seatsLeft`; admin CRUD guarded by
+  `requireAdmin`; booking and capacity changes in `SELECT ... FOR UPDATE`
+  transactions. State conflicts (double-book, full, past, capacity floor,
+  delete-with-history) return 409 with a clear message.
 - `GET /api/health` reports API liveness without touching the database.
 - JSON parsing, 404 handler, and error handler are configured in `src/app.ts`.
 - `src/index.ts` owns HTTP startup and graceful shutdown

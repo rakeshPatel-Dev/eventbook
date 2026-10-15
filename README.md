@@ -72,6 +72,24 @@ GET  /api/auth/me        # → 200 {user} or 401; user = {id, email, role, creat
 
 `password_hash` and session tokens never appear in responses or logs.
 
+Events and bookings (all JSON, same `{ "error": "..." }` shape):
+
+```bash
+GET  /api/events?search=&page=&limit=   # public, upcoming only, seatsLeft computed
+GET  /api/events/:id                    # public, any event incl. past
+GET  /api/events/:id/attendees          # admin: confirmed bookings + emails
+POST /api/events                        # admin: {title, description?, venue, starts_at, total_seats}
+PATCH /api/events/:id                   # admin: partial update; seats never below confirmed → 409
+DELETE /api/events/:id                  # admin: rejected with 409 when booking history exists
+POST /api/bookings                      # auth: {event_id} → 201; double/full/past → 409
+GET  /api/bookings/mine                 # auth: own bookings with event facts
+POST /api/bookings/:id/cancel           # auth: own confirmed booking, future events only
+```
+
+Booking and capacity changes run in transactions that lock the event row
+(`SELECT ... FOR UPDATE`), so two concurrent requests for the last seat
+cannot both succeed; the partial unique index remains as a backstop.
+
 Cookies and CORS: cookie `eventbook_session`, `HttpOnly`, `Path=/`, 7-day
 `Max-Age`, `Secure` in production (`NODE_ENV=production`), `SameSite`
 from `COOKIE_SAMESITE` (default `lax`, good for `localhost`; use `none` for
