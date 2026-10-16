@@ -1,6 +1,11 @@
 import dotenv from 'dotenv';
+import { resolve } from 'node:path';
 
 dotenv.config();
+if (!process.env.DATABASE_URL) {
+  // Allow running from the repo root (npm scripts run from apps/api).
+  dotenv.config({ path: resolve(process.cwd(), 'apps/api/.env') });
+}
 
 export type CookieSameSite = 'lax' | 'strict' | 'none';
 
