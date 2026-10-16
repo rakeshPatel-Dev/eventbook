@@ -8,6 +8,39 @@ export interface ApiUser {
   updatedAt: string;
 }
 
+export interface ApiEvent {
+  id: string;
+  title: string;
+  description: string;
+  venue: string;
+  startsAt: string;
+  totalSeats: number;
+  seatsLeft: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface Pagination {
+  page: number;
+  limit: number;
+  total: number;
+  totalPages: number;
+}
+
+export interface ApiBooking {
+  id: string;
+  eventId: string;
+  status: string;
+  createdAt: string;
+  updatedAt: string;
+  event?: {
+    id: string;
+    title: string;
+    startsAt: string;
+    venue: string;
+  };
+}
+
 export async function api<T>(
   path: string,
   init?: RequestInit,

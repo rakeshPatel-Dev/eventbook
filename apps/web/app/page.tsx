@@ -36,6 +36,14 @@ export default function Home() {
     <main className="flex min-h-screen items-center justify-center bg-zinc-50 px-4">
       <div className="w-full max-w-md text-center">
         <h1 className="text-2xl font-semibold text-zinc-900">EventBook</h1>
+        <div className="mt-2 space-x-4 text-sm">
+          <Link href="/events" className="underline">
+            Browse events
+          </Link>
+          <Link href="/bookings" className="underline">
+            My bookings
+          </Link>
+        </div>
         {loading ? (
           <p className="mt-2 text-sm text-zinc-600">Checking session…</p>
         ) : error ? (
