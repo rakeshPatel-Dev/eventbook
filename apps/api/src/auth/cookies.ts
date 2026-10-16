@@ -48,7 +48,12 @@ export function getCookieValue(cookieHeader: string | undefined, name: string): 
       continue;
     }
     if (part.slice(0, index).trim() === name) {
-      return decodeURIComponent(part.slice(index + 1).trim());
+      // A malformed cookie value is unauthenticated, never a server error.
+      try {
+        return decodeURIComponent(part.slice(index + 1).trim());
+      } catch {
+        return null;
+      }
     }
   }
   return null;

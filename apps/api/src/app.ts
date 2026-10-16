@@ -41,6 +41,12 @@ export function createApp(options: AppOptions): express.Express {
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
     console.error(err);
+    // express.json() marks its own parse failures with status 400; those are
+    // client errors, everything else is an internal failure.
+    if ((err as { status?: unknown }).status === 400) {
+      res.status(400).json({ error: 'Invalid JSON in request body.' });
+      return;
+    }
     res.status(500).json({ error: 'Internal Server Error' });
   });
 

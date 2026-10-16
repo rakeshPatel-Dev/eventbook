@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { createHash } from 'node:crypto';
+import { createHash, randomBytes } from 'node:crypto';
 import { once } from 'node:events';
 import { readFileSync } from 'node:fs';
 import type { AddressInfo } from 'node:net';
@@ -162,9 +162,36 @@ describe('auth', () => {
     assert.equal(unknown.body?.error, 'Invalid email or password.');
   });
 
-  it('rejects /me without a session', async () => {
-    const { res } = await api('/api/auth/me');
+  it('rejects expired sessions', async () => {
+    await register('old@example.com', 'Password123');
+    const userId = (await pool.query("SELECT id FROM users WHERE email = 'old@example.com'"))
+      .rows[0].id as string;
+    // Age the whole row: the schema CHECK (expires_at > created_at) forbids
+    // backdating expires_at alone, so created_at moves back with it.
+    const rawToken = randomBytes(32).toString('hex');
+    const tokenHash = createHash('sha256').update(rawToken, 'utf8').digest('hex');
+    await pool.query(
+      `INSERT INTO sessions (user_id, token_hash, expires_at, created_at)
+       VALUES ($1, $2, now() - interval '1 day', now() - interval '8 days')`,
+      [userId, tokenHash],
+    );
+    const { res } = await api('/api/auth/me', {}, `${SESSION_COOKIE_NAME}=${rawToken}`);
     assert.equal(res.status, 401);
+  });
+
+  it('rejects malformed cookies and JSON bodies without a 500', async () => {
+    const badCookie = await api('/api/auth/me', {}, `${SESSION_COOKIE_NAME}=%`);
+    assert.equal(badCookie.res.status, 401);
+    const badJson = await fetch(`${baseUrl}/api/auth/login`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: '{not-json',
+    });
+    assert.equal(badJson.status, 400);
+    assert.equal(
+      ((await badJson.json()) as { error: string }).error,
+      'Invalid JSON in request body.',
+    );
   });
 
   it('accepts /me with a valid session', async () => {
