@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import type { NextFunction, Request, RequestHandler, Response } from 'express';
 import type { Pool } from 'pg';
 import { requireAdmin, requireAuth, requireSameOrigin } from '../auth/middleware.js';
 import { isUuid, paramId, parsePagination, validateEventBody } from './validation.js';
@@ -54,13 +55,36 @@ export interface EventsRouterDeps {
   frontendOrigin: string;
 }
 
+// The public list shows upcoming events. Admins pass ?scope=all to manage
+// everything including the past; any other scope value is rejected.
+function requireAdminScope(pool: Pool): RequestHandler {
+  return (req: Request, res: Response, next: NextFunction): void => {
+    const scope = req.query.scope;
+    if (scope === undefined) {
+      next();
+      return;
+    }
+    if (scope !== 'all') {
+      res.status(400).json({ error: "scope must be 'all'." });
+      return;
+    }
+    requireAuth(pool)(req, res, (authErr: unknown) => {
+      if (authErr) {
+        next(authErr);
+        return;
+      }
+      requireAdmin()(req, res, next);
+    });
+  };
+}
+
 export function createEventsRouter(deps: EventsRouterDeps): Router {
   const { pool, frontendOrigin } = deps;
   const router = Router();
   const requireOrigin = requireSameOrigin(frontendOrigin);
 
   // Public: upcoming events only, searchable by title, server-paginated.
-  router.get('/', async (req, res, next) => {
+  router.get('/', requireAdminScope(pool), async (req, res, next) => {
     try {
       const pagination = parsePagination(req.query);
       if (pagination.error) {
@@ -68,21 +92,22 @@ export function createEventsRouter(deps: EventsRouterDeps): Router {
         return;
       }
       const search = typeof req.query.search === 'string' ? req.query.search.trim() : '';
-      const where: string[] = ['e.starts_at > now()'];
+      const upcomingOnly = req.query.scope !== 'all';
+      const where: string[] = upcomingOnly ? ['e.starts_at > now()'] : [];
       const params: unknown[] = [];
       if (search) {
         params.push(`%${search}%`);
         where.push(`e.title ILIKE $${params.length}`);
       }
       const totalResult = await pool.query(
-        `SELECT count(*) AS total FROM events e WHERE ${where.join(' AND ')}`,
+        `SELECT count(*) AS total FROM events e${where.length ? ` WHERE ${where.join(' AND ')}` : ''}`,
         params,
       );
       const total = Number(totalResult.rows[0].total);
       const offset = ((pagination.page as number) - 1) * (pagination.limit as number);
       const listResult = await pool.query(
         `SELECT ${EVENT_COLUMNS} ${FROM_EVENTS_WITH_SEATS}
-         WHERE ${where.join(' AND ')}
+         ${where.length ? `WHERE ${where.join(' AND ')}` : ''}
          GROUP BY e.id ORDER BY e.starts_at ASC
          LIMIT $${params.length + 1} OFFSET $${params.length + 2}`,
         [...params, pagination.limit, offset],

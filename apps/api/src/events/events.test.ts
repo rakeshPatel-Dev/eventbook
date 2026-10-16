@@ -192,4 +192,20 @@ describe('events', () => {
     const asUser = await api(ctx.baseUrl, `/api/events/${id}/attendees`, {}, userCookie);
     assert.equal(asUser.res.status, 403);
   });
+
+  it('exposes scope=all to admins only', async () => {
+    await createEvent(ctx.baseUrl, adminCookie, WORKSHOP);
+    await createEvent(ctx.baseUrl, adminCookie, { ...WORKSHOP, starts_at: pastIso(30) });
+
+    const asAdmin = await api(ctx.baseUrl, '/api/events?scope=all', {}, adminCookie);
+    assert.equal(asAdmin.res.status, 200);
+    assert.equal((asAdmin.body?.pagination as { total: number }).total, 2);
+
+    const asUser = await api(ctx.baseUrl, '/api/events?scope=all', {}, userCookie);
+    assert.equal(asUser.res.status, 403);
+    const anonymous = await api(ctx.baseUrl, '/api/events?scope=all');
+    assert.equal(anonymous.res.status, 401);
+    const invalid = await api(ctx.baseUrl, '/api/events?scope=everything', {}, adminCookie);
+    assert.equal(invalid.res.status, 400);
+  });
 });
