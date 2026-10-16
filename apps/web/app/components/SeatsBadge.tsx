@@ -27,8 +27,8 @@ export function formatDateTime(startsAt: string): string {
 export function SeatsBadge({ event }: { event: ApiEvent }) {
   if (isPastEvent(event.startsAt)) {
     return (
-      <span className="rounded-full bg-zinc-200 px-2.5 py-1 text-xs font-medium text-zinc-600">
-        Past event
+      <span className="rounded-full bg-ink px-2.5 py-1 text-xs font-semibold text-card">
+        Completed
       </span>
     );
   }

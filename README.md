@@ -75,7 +75,7 @@ GET  /api/auth/me        # → 200 {user} or 401; user = {id, email, role, creat
 Events and bookings (all JSON, same `{ "error": "..." }` shape):
 
 ```bash
-GET  /api/events?search=&page=&limit=   # public, upcoming only, seatsLeft computed
+GET  /api/events?search=&page=&limit=   # public, upcoming only (+ past_only=true for previous), seatsLeft computed
 GET  /api/events/:id                    # public, any event incl. past
 GET  /api/events/:id/attendees          # admin: confirmed bookings + emails
 POST /api/events                        # admin: {title, description?, venue, starts_at, total_seats}
