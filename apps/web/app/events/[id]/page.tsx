@@ -1,10 +1,17 @@
 'use client';
 
+import { ArrowLeft, CalendarDays, MapPin, Ticket } from 'lucide-react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { useCallback, useEffect, useState } from 'react';
 import { api, apiErrorMessage, type ApiEvent, type ApiUser } from '../../../lib/api';
 import Nav from '../../components/Nav';
+import {
+  calendarParts,
+  formatDateTime,
+  isPastEvent,
+  SeatsBadge,
+} from '../../components/SeatsBadge';
 
 export default function EventDetailPage() {
   const params = useParams<{ id: string }>();
@@ -52,7 +59,7 @@ export default function EventDetailPage() {
         body: JSON.stringify({ event_id: event.id }),
       });
       if (status === 201) {
-        setMessage('Seat booked.');
+        setMessage('Seat booked. See it under My bookings.');
         await load();
       } else {
         setMessage(apiErrorMessage(data, 'Booking failed.'));
@@ -64,53 +71,66 @@ export default function EventDetailPage() {
     }
   }
 
-  const isPast = event ? new Date(event.startsAt).getTime() <= Date.now() : false;
+  const past = event ? isPastEvent(event.startsAt) : false;
+  const cal = event ? calendarParts(event.startsAt) : null;
 
   return (
-    <div className="min-h-screen bg-zinc-50">
+    <div className="min-h-screen">
       <Nav />
       <main className="mx-auto max-w-2xl px-4 py-8">
-        <Link href="/events" className="text-sm text-zinc-600 underline">
-          ← All events
+        <Link
+          href="/events"
+          className="inline-flex items-center gap-1 text-sm text-muted hover:text-ink"
+        >
+          <ArrowLeft size={15} /> All events
         </Link>
         {loading ? (
-          <p className="mt-6 text-sm text-zinc-600">Loading event…</p>
+          <p className="mt-6 text-sm text-muted">Loading event…</p>
         ) : error || !event ? (
-          <p className="mt-6 text-sm text-red-600">{error ?? 'Event not found.'}</p>
+          <p className="mt-6 text-sm text-danger">{error ?? 'Event not found.'}</p>
         ) : (
-          <div className="mt-4 rounded border border-zinc-200 bg-white p-6">
-            <h1 className="text-2xl font-semibold text-zinc-900">{event.title}</h1>
-            <p className="mt-2 text-sm text-zinc-600">
-              {new Date(event.startsAt).toLocaleString()} · {event.venue}
-            </p>
-            {event.description && <p className="mt-4 text-zinc-800">{event.description}</p>}
-            <p className="mt-4 text-sm font-medium text-zinc-700">
-              {isPast
-                ? 'This event already happened.'
-                : event.seatsLeft > 0
-                  ? `${event.seatsLeft} of ${event.totalSeats} seats left`
-                  : 'This event is full.'}
-            </p>
-            <div className="mt-4">
-              {!user ? (
-                <p className="text-sm text-zinc-600">
-                  <Link href="/login" className="underline">
-                    Log in
-                  </Link>{' '}
-                  to book a seat.
-                </p>
-              ) : (
-                <button
-                  onClick={book}
-                  disabled={booking || isPast || event.seatsLeft <= 0}
-                  className="rounded bg-zinc-900 px-4 py-2 text-sm text-white disabled:opacity-50"
-                >
-                  {booking ? 'Booking…' : 'Book a seat'}
-                </button>
-              )}
-              {message && <p className="mt-2 text-sm text-zinc-700">{message}</p>}
+          <article className="mt-4 overflow-hidden rounded-xl bg-card shadow-sm">
+            <div className="flex items-center justify-between bg-gradient-to-br from-primary-soft via-paper to-line px-5 py-4">
+              <div className="flex min-w-[3.5rem] flex-col items-center overflow-hidden rounded-lg bg-card shadow">
+                <span className="w-full bg-ink px-2 py-0.5 text-center text-xs font-bold tracking-widest text-card">
+                  {cal?.month}
+                </span>
+                <span className="px-2 py-1 text-2xl font-bold leading-none">{cal?.day}</span>
+              </div>
+              <SeatsBadge event={event} />
             </div>
-          </div>
+            <div className="p-6">
+              <h1 className="text-2xl font-semibold tracking-tight">{event.title}</h1>
+              <p className="mt-3 flex flex-col gap-1.5 text-sm text-muted">
+                <span className="inline-flex items-center gap-1.5">
+                  <CalendarDays size={15} /> {formatDateTime(event.startsAt)}
+                </span>
+                <span className="inline-flex items-center gap-1.5">
+                  <MapPin size={15} /> {event.venue}
+                </span>
+              </p>
+              {event.description && <p className="mt-4 leading-relaxed">{event.description}</p>}
+              <div className="mt-6 border-t border-line pt-5">
+                {!user ? (
+                  <p className="text-sm text-muted">
+                    <Link href="/login" className="font-medium text-primary hover:underline">
+                      Sign in
+                    </Link>{' '}
+                    to book a seat.
+                  </p>
+                ) : (
+                  <button
+                    onClick={book}
+                    disabled={booking || past || event.seatsLeft <= 0}
+                    className="inline-flex items-center gap-2 rounded-lg bg-primary px-5 py-2.5 text-sm font-medium text-white transition-colors hover:bg-primary-hover disabled:opacity-50"
+                  >
+                    <Ticket size={16} /> {booking ? 'Booking…' : 'Book a seat'}
+                  </button>
+                )}
+                {message && <p className="mt-2 text-sm text-muted">{message}</p>}
+              </div>
+            </div>
+          </article>
         )}
       </main>
     </div>

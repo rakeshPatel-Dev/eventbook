@@ -1,9 +1,11 @@
 'use client';
 
+import { CalendarX2, TicketX } from 'lucide-react';
 import Link from 'next/link';
 import { useCallback, useEffect, useState } from 'react';
 import { api, apiErrorMessage, type ApiBooking } from '../../lib/api';
 import Nav from '../components/Nav';
+import { formatDateTime, isPastEvent } from '../components/SeatsBadge';
 
 export default function BookingsPage() {
   const [bookings, setBookings] = useState<ApiBooking[]>([]);
@@ -56,68 +58,83 @@ export default function BookingsPage() {
   }
 
   return (
-    <div className="min-h-screen bg-zinc-50">
+    <div className="min-h-screen">
       <Nav />
       <main className="mx-auto max-w-2xl px-4 py-8">
-        <h1 className="text-2xl font-semibold text-zinc-900">My bookings</h1>
+        <h1 className="text-3xl font-semibold tracking-tight">My bookings</h1>
+        <p className="mt-1 text-sm text-muted">Seats you hold. Cancelling frees the seat.</p>
         {loading ? (
-          <p className="mt-6 text-sm text-zinc-600">Loading bookings…</p>
+          <p className="mt-6 text-sm text-muted">Loading bookings…</p>
         ) : needsLogin ? (
-          <p className="mt-6 text-sm text-zinc-600">
-            <Link href="/login" className="underline">
-              Log in
-            </Link>{' '}
-            to see your bookings.
-          </p>
+          <div className="mt-6 rounded-xl bg-card p-8 text-center shadow-sm">
+            <p className="text-sm text-muted">Sign in to see your bookings.</p>
+            <Link
+              href="/login"
+              className="mt-4 inline-block rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary-hover"
+            >
+              Sign in
+            </Link>
+          </div>
         ) : error ? (
-          <p className="mt-6 text-sm text-red-600">{error}</p>
+          <p className="mt-6 text-sm text-danger">{error}</p>
         ) : bookings.length === 0 ? (
-          <p className="mt-6 text-sm text-zinc-600">
-            No bookings yet.{' '}
-            <Link href="/events" className="underline">
+          <div className="mt-6 flex flex-col items-center rounded-xl bg-card px-6 py-12 text-center shadow-sm">
+            <span className="flex h-12 w-12 items-center justify-center rounded-full bg-paper text-faint">
+              <CalendarX2 size={24} />
+            </span>
+            <h3 className="mt-3 font-semibold">No bookings yet</h3>
+            <p className="mt-1 text-sm text-muted">Find an experience and reserve your seat.</p>
+            <Link
+              href="/events"
+              className="mt-4 rounded-lg bg-ink px-4 py-2 text-sm font-medium text-white"
+            >
               Browse events
             </Link>
-            .
-          </p>
+          </div>
         ) : (
           <>
-            {message && <p className="mt-4 text-sm text-zinc-700">{message}</p>}
+            {message && <p className="mt-4 text-sm text-muted">{message}</p>}
             <ul className="mt-4 space-y-4">
               {bookings.map((booking) => {
-                const past = booking.event
-                  ? new Date(booking.event.startsAt).getTime() <= Date.now()
-                  : false;
+                const past = booking.event ? isPastEvent(booking.event.startsAt) : false;
+                const active = booking.status === 'confirmed' && !past;
                 return (
-                  <li key={booking.id} className="rounded border border-zinc-200 bg-white p-4">
+                  <li key={booking.id} className="rounded-xl bg-card p-5 shadow-sm">
                     <div className="flex items-start justify-between gap-3">
                       <div>
                         {booking.event ? (
                           <Link
                             href={`/events/${booking.event.id}`}
-                            className="font-medium text-zinc-900 underline"
+                            className="font-semibold hover:text-primary"
                           >
                             {booking.event.title}
                           </Link>
                         ) : (
-                          <span className="font-medium text-zinc-900">Unknown event</span>
+                          <span className="font-semibold">Unknown event</span>
                         )}
                         {booking.event && (
-                          <p className="mt-1 text-sm text-zinc-600">
-                            {new Date(booking.event.startsAt).toLocaleString()} ·{' '}
-                            {booking.event.venue}
+                          <p className="mt-1 text-sm text-muted">
+                            {formatDateTime(booking.event.startsAt)} · {booking.event.venue}
                           </p>
                         )}
-                        <p className="mt-1 text-xs text-zinc-500">
-                          Status: {booking.status}
-                          {past ? ' · past event' : ''}
+                        <p className="mt-1.5 text-xs">
+                          <span
+                            className={`rounded-full px-2 py-0.5 font-medium ${
+                              active ? 'bg-ok-bg text-ok-ink' : 'bg-zinc-200 text-zinc-600'
+                            }`}
+                          >
+                            {booking.status}
+                            {past ? ' · past event' : ''}
+                          </span>
                         </p>
                       </div>
-                      {booking.status === 'confirmed' && !past && (
+                      {active && (
                         <button
                           onClick={() => cancel(booking.id)}
                           disabled={cancelling === booking.id}
-                          className="shrink-0 rounded border border-zinc-300 px-3 py-1 text-sm disabled:opacity-50"
+                          className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-line px-3 py-1.5 text-sm font-medium transition-colors hover:bg-paper disabled:opacity-50"
                         >
+                          <TicketX size={15} />
                           {cancelling === booking.id ? 'Cancelling…' : 'Cancel'}
                         </button>
                       )}

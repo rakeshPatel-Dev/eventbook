@@ -1,15 +1,18 @@
 import type { Metadata } from 'next';
+import { Geist } from 'next/font/google';
 import './globals.css';
+
+const geist = Geist({ subsets: ['latin'] });
 
 export const metadata: Metadata = {
   title: 'EventBook',
-  description: 'EventBook frontend foundation',
+  description: 'Discover and book local events',
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
-      <body>{children}</body>
+      <body className={`${geist.className} antialiased`}>{children}</body>
     </html>
   );
 }
