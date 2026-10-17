@@ -1,6 +1,6 @@
 'use client';
 
-import { Search } from 'lucide-react';
+import { Search, X } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import Nav from '../components/Nav';
 import { EventSection } from './EventSection';
@@ -17,45 +17,85 @@ export default function EventsPage() {
   return (
     <div className="min-h-screen">
       <Nav />
-      <main className="mx-auto max-w-5xl px-4">
-        <section className="pb-8 pt-10">
-          <p className="text-xs font-semibold uppercase tracking-widest text-primary">
-            Curated local gatherings
+      <main className="mx-auto max-w-6xl px-4 sm:px-6">
+        <section className="page-rise pb-8 pt-10 sm:pt-14">
+          <p className="text-sm font-medium text-muted">Workshops, meetups, and live sessions</p>
+          <h1 className="mt-2 max-w-3xl font-display text-5xl font-bold leading-[1.02] tracking-tight sm:text-6xl">
+            Find your next experience.
+          </h1>
+          <p className="mt-3 max-w-xl leading-relaxed text-muted">
+            Every seat count is live. Book in one tap, cancel anytime before showtime.
           </p>
-          <h1 className="mt-2 text-4xl font-semibold tracking-tight">Find your next experience.</h1>
-          <p className="mt-2 max-w-xl text-muted">
-            Workshops, meetups, and live sessions — with live seat availability.
-          </p>
-          <div className="mt-6 flex items-center rounded-xl bg-card p-2 shadow-md">
-            <Search size={20} className="ml-3 shrink-0 text-faint" />
+          <div className="mt-6 flex max-w-2xl items-center gap-2 rounded-full border border-line bg-card p-2 pl-2 shadow-[0_8px_30px_rgba(22,19,14,0.06)] focus-within:border-ink/40">
+            <Search size={19} className="ml-3 shrink-0 text-faint" />
             <input
               type="search"
               aria-label="Search events by title"
               placeholder="Search events by title…"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="w-full bg-transparent px-3 py-2 text-ink outline-none placeholder:text-faint"
+              className="w-full bg-transparent px-1 py-2.5 text-[16px] text-ink outline-none placeholder:text-faint [&::-webkit-search-cancel-button]:hidden"
             />
+            {search ? (
+              <button
+                onClick={() => setSearch('')}
+                aria-label="Clear search"
+                className="mr-1 rounded-full p-2.5 text-faint transition-colors hover:bg-paper hover:text-ink"
+              >
+                <X size={16} />
+              </button>
+            ) : (
+              <kbd className="mr-3 hidden shrink-0 rounded-md border border-line bg-paper px-2 py-1 text-xs text-faint sm:inline">
+                Type to filter
+              </kbd>
+            )}
           </div>
+          {committedSearch && (
+            <p className="mt-3 text-sm text-muted">
+              Showing results for{' '}
+              <span className="font-semibold text-ink">“{committedSearch}”</span>{' '}
+              <button
+                onClick={() => setSearch('')}
+                className="ml-1 font-medium text-primary-deep hover:underline"
+              >
+                Clear
+              </button>
+            </p>
+          )}
         </section>
 
-        <div className="space-y-10 pb-16">
+        <div className="space-y-12 pb-16">
           <EventSection
-            title="Upcoming events"
+            title="Upcoming"
             pastOnly={false}
             search={committedSearch}
+            featured
             emptyHint={
               committedSearch
                 ? `Nothing matches “${committedSearch}”. Try a different title.`
                 : 'No upcoming events yet. Check back soon.'
             }
           />
-          <EventSection
-            title="Previous events"
-            pastOnly={true}
-            search={committedSearch}
-            emptyHint="No past events yet."
-          />
+          <details className="group rounded-4xl border border-line bg-card/50">
+            <summary className="cursor-pointer list-none px-5 py-4 text-sm font-semibold transition-colors hover:bg-card [&::-webkit-details-marker]:hidden">
+              <span className="inline-flex items-center gap-2">
+                <span className="inline-block transition-transform group-open:rotate-90">›</span>
+                Previous events
+              </span>
+              <span className="ml-2 font-normal text-muted">
+                Ended shows stay visible for reference
+              </span>
+            </summary>
+            <div className="px-4 pb-6 sm:px-5">
+              <EventSection
+                title=""
+                pastOnly={true}
+                search={committedSearch}
+                compact
+                emptyHint="No past events yet."
+              />
+            </div>
+          </details>
         </div>
       </main>
     </div>
