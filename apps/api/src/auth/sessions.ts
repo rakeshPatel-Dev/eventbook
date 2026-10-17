@@ -18,6 +18,8 @@ export function hashToken(token: string): string {
   return createHash('sha256').update(token, 'utf8').digest('hex');
 }
 
+const MAX_ACTIVE_SESSIONS = 10;
+
 export async function createSession(
   pool: Pool,
   userId: string,
@@ -29,6 +31,14 @@ export async function createSession(
     hashToken(token),
     expiresAt.toISOString(),
   ]);
+  // Cap active sessions per user: delete oldest beyond the limit.
+  await pool.query(
+    `DELETE FROM sessions WHERE user_id = $1 AND token_hash NOT IN (
+       SELECT token_hash FROM sessions WHERE user_id = $1
+       ORDER BY created_at DESC LIMIT ${MAX_ACTIVE_SESSIONS}
+     )`,
+    [userId],
+  );
   return { token, expiresAt };
 }
 

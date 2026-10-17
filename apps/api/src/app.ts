@@ -1,5 +1,6 @@
 import cors from 'cors';
 import express, { type NextFunction, type Request, type Response } from 'express';
+import helmet from 'helmet';
 import type { Pool } from 'pg';
 import { createAuthRouter } from './auth/routes.js';
 import { createBookingsRouter } from './bookings/routes.js';
@@ -16,6 +17,9 @@ export function createApp(options: AppOptions): express.Express {
   const { pool, frontendOrigin, cookie } = options;
   const app = express();
 
+  // Security headers (X-Content-Type-Options, X-Frame-Options, HSTS, etc.)
+  app.use(helmet());
+
   // Cookies carry the session, so the browser must be allowed to send them —
   // but only to the single configured frontend origin, never '*'.
   app.use(
@@ -24,7 +28,7 @@ export function createApp(options: AppOptions): express.Express {
       credentials: true,
     }),
   );
-  app.use(express.json());
+  app.use(express.json({ limit: '16kb' }));
 
   app.get('/api/health', (_req: Request, res: Response) => {
     res.status(200).json({ status: 'ok' });

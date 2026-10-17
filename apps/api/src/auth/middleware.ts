@@ -67,10 +67,28 @@ export function requireAdmin(): RequestHandler {
 // Browsers always send Origin on fetch POSTs; same-origin requests pass,
 // cross-site requests are rejected. Non-browser clients (curl, tests) send
 // no Origin header and are unaffected.
+//
+// For sensitive endpoints, requireXRequestedWith adds a second layer:
+// a custom header that cross-origin scripts cannot set due to CORS.
 export function requireSameOrigin(frontendOrigin: string): RequestHandler {
   return (req: Request, res: Response, next: NextFunction): void => {
     const origin = req.headers.origin;
     if (origin && origin !== frontendOrigin) {
+      res.status(403).json({ error: 'Forbidden' });
+      return;
+    }
+    next();
+  };
+}
+
+// Additional CSRF layer for sensitive endpoints. Cross-origin scripts cannot
+// set custom headers without triggering a CORS preflight, which the browser
+// blocks. This makes CSRF attacks from malicious sites impossible even if
+// SameSite=None is configured.
+export function requireXRequestedWith(): RequestHandler {
+  return (req: Request, res: Response, next: NextFunction): void => {
+    const header = req.headers['x-requested-with'];
+    if (header !== 'XMLHttpRequest') {
       res.status(403).json({ error: 'Forbidden' });
       return;
     }

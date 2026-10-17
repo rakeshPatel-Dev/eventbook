@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import type { Pool } from 'pg';
-import { requireAuth, requireSameOrigin } from '../auth/middleware.js';
+import { requireAuth, requireSameOrigin, requireXRequestedWith } from '../auth/middleware.js';
 import { isUuid, paramId } from '../events/validation.js';
 
 interface BookingRow {
@@ -137,48 +137,70 @@ export function createBookingsRouter(deps: BookingsRouterDeps): Router {
   });
 
   // Cancelling flips the status and frees the seat; history is preserved.
-  // No event lock is needed: cancellation only removes occupancy.
-  router.post('/:id/cancel', requireAuth(pool), requireOrigin, async (req, res, next) => {
-    try {
-      const id = paramId(req.params.id);
-      if (!isUuid(id)) {
-        res.status(400).json({ error: 'Invalid booking id.' });
-        return;
+  // Uses SELECT ... FOR UPDATE to prevent TOCTOU races between concurrent
+  // cancellation requests for the same booking.
+  router.post(
+    '/:id/cancel',
+    requireAuth(pool),
+    requireXRequestedWith(),
+    requireOrigin,
+    async (req, res, next) => {
+      try {
+        const id = paramId(req.params.id);
+        if (!isUuid(id)) {
+          res.status(400).json({ error: 'Invalid booking id.' });
+          return;
+        }
+        const client = await pool.connect();
+        try {
+          await client.query('BEGIN');
+          const found = await client.query(
+            `SELECT b.id, b.user_id, b.status, e.starts_at
+           FROM bookings b JOIN events e ON e.id = b.event_id
+           WHERE b.id = $1
+           FOR UPDATE OF b`,
+            [id],
+          );
+          const row = found.rows[0] as
+            { id: string; user_id: string; status: string; starts_at: Date } | undefined;
+          if (!row) {
+            await client.query('ROLLBACK');
+            res.status(404).json({ error: 'Booking not found.' });
+            return;
+          }
+          if (row.user_id !== req.auth?.userId) {
+            await client.query('ROLLBACK');
+            res.status(403).json({ error: 'Forbidden' });
+            return;
+          }
+          if (row.status !== 'confirmed') {
+            await client.query('ROLLBACK');
+            res.status(409).json({ error: 'Booking is already cancelled.' });
+            return;
+          }
+          if (row.starts_at.getTime() <= Date.now()) {
+            await client.query('ROLLBACK');
+            res.status(409).json({ error: 'Bookings for past events cannot be cancelled.' });
+            return;
+          }
+          const updated = await client.query(
+            `UPDATE bookings SET status = 'cancelled', updated_at = now() WHERE id = $1
+           RETURNING id, event_id, status, created_at, updated_at`,
+            [id],
+          );
+          await client.query('COMMIT');
+          res.status(200).json({ booking: toApiBooking(updated.rows[0] as BookingRow) });
+        } catch (err) {
+          await client.query('ROLLBACK');
+          throw err;
+        } finally {
+          client.release();
+        }
+      } catch (err) {
+        next(err);
       }
-      const found = await pool.query(
-        `SELECT b.id, b.user_id, b.status, e.starts_at
-         FROM bookings b JOIN events e ON e.id = b.event_id
-         WHERE b.id = $1`,
-        [id],
-      );
-      const row = found.rows[0] as
-        { id: string; user_id: string; status: string; starts_at: Date } | undefined;
-      if (!row) {
-        res.status(404).json({ error: 'Booking not found.' });
-        return;
-      }
-      if (row.user_id !== req.auth?.userId) {
-        res.status(403).json({ error: 'Forbidden' });
-        return;
-      }
-      if (row.status !== 'confirmed') {
-        res.status(409).json({ error: 'Booking is already cancelled.' });
-        return;
-      }
-      if (row.starts_at.getTime() <= Date.now()) {
-        res.status(409).json({ error: 'Bookings for past events cannot be cancelled.' });
-        return;
-      }
-      const updated = await pool.query(
-        `UPDATE bookings SET status = 'cancelled', updated_at = now() WHERE id = $1
-         RETURNING id, event_id, status, created_at, updated_at`,
-        [id],
-      );
-      res.status(200).json({ booking: toApiBooking(updated.rows[0] as BookingRow) });
-    } catch (err) {
-      next(err);
-    }
-  });
+    },
+  );
 
   return router;
 }

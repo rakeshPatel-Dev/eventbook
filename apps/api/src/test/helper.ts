@@ -56,6 +56,8 @@ export async function api(baseUrl: string, path: string, init?: RequestInit, coo
     ...init,
     headers: {
       'content-type': 'application/json',
+      // Mutating event/booking routes require this header (CSRF guard).
+      'x-requested-with': 'XMLHttpRequest',
       ...(cookie ? { cookie } : {}),
       ...init?.headers,
     },

@@ -1,7 +1,12 @@
 import { Router } from 'express';
 import type { NextFunction, Request, RequestHandler, Response } from 'express';
 import type { Pool } from 'pg';
-import { requireAdmin, requireAuth, requireSameOrigin } from '../auth/middleware.js';
+import {
+  requireAdmin,
+  requireAuth,
+  requireSameOrigin,
+  requireXRequestedWith,
+} from '../auth/middleware.js';
 import { isUuid, paramId, parsePagination, validateEventBody } from './validation.js';
 
 interface EventRow {
@@ -36,7 +41,7 @@ function toApiEvent(row: EventRow): ApiEvent {
     venue: row.venue,
     startsAt: row.starts_at.toISOString(),
     totalSeats: row.total_seats,
-    seatsLeft: Number(row.seats_left),
+    seatsLeft: Math.max(0, Number(row.seats_left)),
     createdAt: row.created_at.toISOString(),
     updatedAt: row.updated_at.toISOString(),
   };
@@ -192,98 +197,115 @@ export function createEventsRouter(deps: EventsRouterDeps): Router {
     }
   });
 
-  router.post('/', requireAuth(pool), requireAdmin(), requireOrigin, async (req, res, next) => {
-    try {
-      const { error, value } = validateEventBody(req.body as Record<string, unknown>, false);
-      if (error || !value) {
-        res.status(400).json({ error: error ?? 'Invalid event.' });
-        return;
-      }
-      const result = await pool.query(
-        `INSERT INTO events (title, description, venue, starts_at, total_seats)
+  router.post(
+    '/',
+    requireOrigin,
+    requireXRequestedWith(),
+    requireAuth(pool),
+    requireAdmin(),
+    async (req, res, next) => {
+      try {
+        const { error, value } = validateEventBody(req.body as Record<string, unknown>, false);
+        if (error || !value) {
+          res.status(400).json({ error: error ?? 'Invalid event.' });
+          return;
+        }
+        const result = await pool.query(
+          `INSERT INTO events (title, description, venue, starts_at, total_seats)
          VALUES ($1, $2, $3, $4, $5)
          RETURNING id, title, description, venue, starts_at, total_seats, created_at, updated_at,
            total_seats AS seats_left`,
-        [value.title, value.description ?? '', value.venue, value.startsAt, value.totalSeats],
-      );
-      res.status(201).json({ event: toApiEvent(result.rows[0] as EventRow) });
-    } catch (err) {
-      next(err);
-    }
-  });
-
-  router.patch('/:id', requireAuth(pool), requireAdmin(), requireOrigin, async (req, res, next) => {
-    try {
-      const id = paramId(req.params.id);
-      if (!isUuid(id)) {
-        res.status(400).json({ error: 'Invalid event id.' });
-        return;
-      }
-      const { error, value } = validateEventBody(req.body as Record<string, unknown>, true);
-      if (error || !value) {
-        res.status(400).json({ error: error ?? 'Invalid event.' });
-        return;
-      }
-      const client = await pool.connect();
-      try {
-        await client.query('BEGIN');
-        const locked = await client.query(
-          'SELECT id, total_seats FROM events WHERE id = $1 FOR UPDATE',
-          [id],
+          [value.title, value.description ?? '', value.venue, value.startsAt, value.totalSeats],
         );
-        if (locked.rowCount === 0) {
-          await client.query('ROLLBACK');
-          res.status(404).json({ error: 'Event not found.' });
+        res.status(201).json({ event: toApiEvent(result.rows[0] as EventRow) });
+      } catch (err) {
+        next(err);
+      }
+    },
+  );
+
+  router.patch(
+    '/:id',
+    requireOrigin,
+    requireXRequestedWith(),
+    requireAuth(pool),
+    requireAdmin(),
+    async (req, res, next) => {
+      try {
+        const id = paramId(req.params.id);
+        if (!isUuid(id)) {
+          res.status(400).json({ error: 'Invalid event id.' });
           return;
         }
-        if (value.totalSeats !== undefined) {
-          const counted = await client.query(
-            "SELECT count(*) AS n FROM bookings WHERE event_id = $1 AND status = 'confirmed'",
+        const { error, value } = validateEventBody(req.body as Record<string, unknown>, true);
+        if (error || !value) {
+          res.status(400).json({ error: error ?? 'Invalid event.' });
+          return;
+        }
+        const client = await pool.connect();
+        try {
+          await client.query('BEGIN');
+          const locked = await client.query(
+            'SELECT id, total_seats FROM events WHERE id = $1 FOR UPDATE',
             [id],
           );
-          if (value.totalSeats < Number(counted.rows[0].n)) {
+          if (locked.rowCount === 0) {
             await client.query('ROLLBACK');
-            res.status(409).json({ error: 'total_seats cannot be below the confirmed bookings.' });
+            res.status(404).json({ error: 'Event not found.' });
             return;
           }
-        }
-        const sets: string[] = [];
-        const params: unknown[] = [];
-        const push = (column: string, val: unknown) => {
-          params.push(val);
-          sets.push(`${column} = $${params.length}`);
-        };
-        if (value.title !== undefined) push('title', value.title);
-        if (value.description !== undefined) push('description', value.description);
-        if (value.venue !== undefined) push('venue', value.venue);
-        if (value.startsAt !== undefined) push('starts_at', value.startsAt);
-        if (value.totalSeats !== undefined) push('total_seats', value.totalSeats);
-        params.push(id);
-        const updated = await client.query(
-          `UPDATE events SET ${sets.join(', ')}, updated_at = now() WHERE id = $${params.length}
+          if (value.totalSeats !== undefined) {
+            const counted = await client.query(
+              "SELECT count(*) AS n FROM bookings WHERE event_id = $1 AND status = 'confirmed'",
+              [id],
+            );
+            if (value.totalSeats < Number(counted.rows[0].n)) {
+              await client.query('ROLLBACK');
+              res
+                .status(409)
+                .json({ error: 'total_seats cannot be below the confirmed bookings.' });
+              return;
+            }
+          }
+          const sets: string[] = [];
+          const params: unknown[] = [];
+          const push = (column: string, val: unknown) => {
+            params.push(val);
+            sets.push(`${column} = $${params.length}`);
+          };
+          if (value.title !== undefined) push('title', value.title);
+          if (value.description !== undefined) push('description', value.description);
+          if (value.venue !== undefined) push('venue', value.venue);
+          if (value.startsAt !== undefined) push('starts_at', value.startsAt);
+          if (value.totalSeats !== undefined) push('total_seats', value.totalSeats);
+          params.push(id);
+          const updated = await client.query(
+            `UPDATE events SET ${sets.join(', ')}, updated_at = now() WHERE id = $${params.length}
            RETURNING id, title, description, venue, starts_at, total_seats, created_at, updated_at,
              total_seats - (SELECT count(*) FROM bookings
                WHERE event_id = events.id AND status = 'confirmed')::int AS seats_left`,
-          params,
-        );
-        await client.query('COMMIT');
-        res.status(200).json({ event: toApiEvent(updated.rows[0] as EventRow) });
+            params,
+          );
+          await client.query('COMMIT');
+          res.status(200).json({ event: toApiEvent(updated.rows[0] as EventRow) });
+        } catch (err) {
+          await client.query('ROLLBACK');
+          throw err;
+        } finally {
+          client.release();
+        }
       } catch (err) {
-        await client.query('ROLLBACK');
-        throw err;
-      } finally {
-        client.release();
+        next(err);
       }
-    } catch (err) {
-      next(err);
-    }
-  });
+    },
+  );
 
   router.delete(
     '/:id',
+    requireOrigin,
+    requireXRequestedWith(),
     requireAuth(pool),
     requireAdmin(),
-    requireOrigin,
     async (req, res, next) => {
       try {
         const id = paramId(req.params.id);

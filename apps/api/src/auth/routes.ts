@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import rateLimit from 'express-rate-limit';
 import type { Pool } from 'pg';
 import {
   clearSessionCookie,
@@ -50,7 +51,16 @@ export function createAuthRouter(deps: AuthRouterDeps): Router {
   const router = Router();
   const requireOrigin = requireSameOrigin(frontendOrigin);
 
-  router.post('/register', requireOrigin, async (req, res, next) => {
+  // Throttle credential stuffing and account creation spam.
+  const authLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 20,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { error: 'Too many attempts. Please try again later.' },
+  });
+
+  router.post('/register', authLimiter, requireOrigin, async (req, res, next) => {
     try {
       const { email: rawEmail, password } = req.body as { email?: unknown; password?: unknown };
       if (typeof rawEmail !== 'string') {
@@ -95,7 +105,7 @@ export function createAuthRouter(deps: AuthRouterDeps): Router {
     }
   });
 
-  router.post('/login', requireOrigin, async (req, res, next) => {
+  router.post('/login', authLimiter, requireOrigin, async (req, res, next) => {
     try {
       const { email: rawEmail, password } = req.body as { email?: unknown; password?: unknown };
       if (typeof rawEmail !== 'string' || typeof password !== 'string') {
