@@ -1,19 +1,22 @@
 'use client';
 
-import { CalendarX2, TicketX } from 'lucide-react';
+import { ArrowUpRight, CalendarX2, TicketX } from 'lucide-react';
 import Link from 'next/link';
 import { useCallback, useEffect, useState } from 'react';
-import { api, apiErrorMessage, type ApiBooking } from '../../lib/api';
+import { api, friendlyErrorMessage, type ApiBooking } from '../../lib/api';
+import { EmptyState, ErrorState } from '../components/Feedback';
 import Nav from '../components/Nav';
-import { formatDateTime, isPastEvent } from '../components/SeatsBadge';
+import { calendarParts, DateRail, formatTime, isPastEvent } from '../components/SeatsBadge';
+import { useToast } from '../components/Toast';
 
 export default function BookingsPage() {
   const [bookings, setBookings] = useState<ApiBooking[]>([]);
   const [loading, setLoading] = useState(true);
   const [needsLogin, setNeedsLogin] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [message, setMessage] = useState<string | null>(null);
   const [cancelling, setCancelling] = useState<string | null>(null);
+  const [confirmId, setConfirmId] = useState<string | null>(null);
+  const { error: toastError, loading: loadingToast } = useToast();
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -26,124 +29,253 @@ export default function BookingsPage() {
       } else if (status === 401) {
         setNeedsLogin(true);
       } else {
-        setError('Could not load bookings.');
+        const msg = 'Could not load bookings.';
+        setError(msg);
+        toastError('Bookings failed to load', msg);
       }
     } catch {
-      setError('Could not reach the API. Is the backend running?');
+      const msg = 'Could not reach the API. Check your connection and retry.';
+      setError(msg);
+      toastError('Network error', msg);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [toastError]);
 
   useEffect(() => {
     void load();
   }, [load]);
 
+  // Sessions can die while this page is open (logout in another tab,
+  // expired cookie). Re-check quietly on focus: 401 flips to the
+  // sign-in screen instead of showing stale bookings. Other failures
+  // stay silent here — the explicit reload path reports them.
+  useEffect(() => {
+    async function revalidate() {
+      try {
+        const { status, data } = await api<{ bookings: ApiBooking[] }>('/api/bookings/mine');
+        if (status === 200 && data) {
+          setBookings(data.bookings);
+          setNeedsLogin(false);
+        } else if (status === 401) {
+          setBookings([]);
+          setNeedsLogin(true);
+        }
+      } catch {
+        /* ignore: explicit reload surfaces errors */
+      }
+    }
+    window.addEventListener('focus', revalidate);
+    return () => window.removeEventListener('focus', revalidate);
+  }, []);
+
   async function cancel(id: string) {
     setCancelling(id);
-    setMessage(null);
+    const t = loadingToast('Cancelling booking…', 'Releasing your seat.');
     try {
       const { status, data } = await api(`/api/bookings/${id}/cancel`, { method: 'POST' });
       if (status === 200) {
-        setMessage('Booking cancelled; the seat is free again.');
+        t.success('Booking cancelled', 'The seat is free again.');
+        setConfirmId(null);
         await load();
       } else {
-        setMessage(apiErrorMessage(data, 'Cancellation failed.'));
+        t.error('Cancellation failed', friendlyErrorMessage(status, data, 'Cancellation failed.'));
       }
     } catch {
-      setMessage('Could not reach the API. Is the backend running?');
+      t.error('Network error', 'Could not reach the API. Is the backend running?');
     } finally {
       setCancelling(null);
     }
   }
 
+  const upcoming = bookings.filter(
+    (b) => b.status === 'confirmed' && b.event && !isPastEvent(b.event.startsAt),
+  );
+  const others = bookings.filter(
+    (b) => !(b.status === 'confirmed' && b.event && !isPastEvent(b.event.startsAt)),
+  );
+
+  function row(booking: ApiBooking, active: boolean) {
+    const past = booking.event ? isPastEvent(booking.event.startsAt) : false;
+    const confirming = confirmId === booking.id;
+    const cal = booking.event ? calendarParts(booking.event.startsAt) : null;
+    return (
+      <li key={booking.id} className="overflow-hidden rounded-4xl border border-line bg-card">
+        <div className="flex items-start gap-4 p-5 sm:p-6">
+          {booking.event ? (
+            <DateRail startsAt={booking.event.startsAt} size="sm" />
+          ) : (
+            <div className="w-[68px] shrink-0 text-xs text-faint">No date</div>
+          )}
+          <div
+            aria-hidden="true"
+            className="w-px self-stretch bg-[repeating-linear-gradient(to_bottom,var(--color-line)_0_5px,transparent_5px_10px)]"
+          />
+          <div className="flex min-w-0 flex-1 flex-col gap-1.5">
+            {booking.event ? (
+              <Link
+                href={`/events/${booking.event.id}`}
+                className="truncate font-display text-[17px] font-bold leading-snug tracking-tight hover:text-primary-deep"
+              >
+                {booking.event.title}
+              </Link>
+            ) : (
+              <span className="font-semibold">Unknown event</span>
+            )}
+            {booking.event && cal && (
+              <p className="truncate text-[13px] tabular-nums text-muted">
+                <time dateTime={cal.iso}>
+                  {cal.weekday}, {formatTime(booking.event.startsAt)}
+                </time>
+                <span aria-hidden="true"> · </span>
+                {booking.event.venue}
+              </p>
+            )}
+            <p className="pt-0.5 text-xs">
+              <span
+                className={`inline-flex h-[24px] items-center rounded-full px-2.5 font-semibold ${
+                  active
+                    ? 'bg-ok-bg text-ok-ink'
+                    : booking.status === 'cancelled'
+                      ? 'border border-red-200 bg-red-50 text-red-800'
+                      : 'border border-line bg-line/70 text-muted'
+                }`}
+              >
+                {active ? 'Confirmed' : booking.status === 'cancelled' ? 'Cancelled' : 'Ended'}
+              </span>
+            </p>
+          </div>
+          <div className="flex shrink-0 flex-col items-end justify-center gap-2 self-center">
+            {booking.event && (
+              <Link
+                href={`/events/${booking.event.id}`}
+                className="inline-flex min-h-[44px] items-center gap-1 rounded-full border border-line px-4 py-2 text-sm font-medium transition-colors hover:bg-paper"
+              >
+                View <ArrowUpRight size={14} />
+              </Link>
+            )}
+            {active &&
+              (confirming ? (
+                <span className="flex items-center gap-2 text-sm">
+                  <button
+                    onClick={() => setConfirmId(null)}
+                    className="rounded-full px-4 py-2 text-muted hover:bg-paper"
+                  >
+                    Keep
+                  </button>
+                  <button
+                    onClick={() => cancel(booking.id)}
+                    disabled={cancelling === booking.id}
+                    className="inline-flex min-h-[44px] items-center gap-1.5 rounded-full bg-primary px-4 py-2 font-medium text-ink transition-colors hover:bg-danger hover:text-white disabled:opacity-50"
+                  >
+                    <TicketX size={15} />
+                    {cancelling === booking.id ? 'Cancelling…' : 'Confirm cancel'}
+                  </button>
+                </span>
+              ) : (
+                <button
+                  onClick={() => setConfirmId(booking.id)}
+                  className="inline-flex min-h-[44px] items-center gap-1.5 rounded-full border border-line px-4 py-2 text-sm font-medium transition-colors hover:bg-paper"
+                >
+                  <TicketX size={15} />
+                  Cancel
+                </button>
+              ))}
+          </div>
+        </div>
+        {confirming && (
+          <p className="border-t border-dashed border-line bg-paper px-5 py-2.5 text-xs text-muted">
+            Cancelling frees the seat immediately. This cannot be undone.
+          </p>
+        )}
+      </li>
+    );
+  }
+
   return (
     <div className="min-h-screen">
       <Nav />
-      <main className="mx-auto max-w-2xl px-4 py-8">
-        <h1 className="text-3xl font-semibold tracking-tight">My bookings</h1>
-        <p className="mt-1 text-sm text-muted">Seats you hold. Cancelling frees the seat.</p>
+      <main className="mx-auto max-w-6xl px-4 py-10 sm:px-6">
+        <p className="text-sm font-medium text-muted">Your seats</p>
+        <h1 className="mt-1 font-display text-4xl font-bold tracking-tight sm:text-5xl">
+          My bookings
+        </h1>
+        <p className="mt-2 text-sm text-muted">
+          {upcoming.length > 0
+            ? `${upcoming.length} upcoming ${upcoming.length === 1 ? 'seat' : 'seats'}. Cancelling frees the seat.`
+            : 'Seats you hold. Cancelling frees the seat.'}
+        </p>
         {loading ? (
-          <p className="mt-6 text-sm text-muted">Loading bookings…</p>
+          <ul className="mt-6 grid gap-4 md:grid-cols-2" aria-label="Loading bookings">
+            {[0, 1, 2, 3].map((i) => (
+              <li key={i} className="rounded-4xl border border-line bg-card p-5 sm:p-6">
+                <div className="flex items-start gap-4">
+                  <div className="w-[68px] shrink-0">
+                    <div className="skeleton h-2.5 w-8 rounded" />
+                    <div className="skeleton mt-2 h-8 w-10 rounded-md" />
+                    <div className="skeleton mt-2 h-2.5 w-10 rounded" />
+                  </div>
+                  <div aria-hidden="true" className="w-px self-stretch bg-line" />
+                  <div className="min-w-0 flex-1 space-y-2 py-0.5">
+                    <div className="skeleton h-4 w-3/4 rounded" />
+                    <div className="skeleton h-3 w-2/3 rounded" />
+                    <div className="skeleton h-6 w-24 rounded-full" />
+                  </div>
+                </div>
+              </li>
+            ))}
+          </ul>
         ) : needsLogin ? (
-          <div className="mt-6 rounded-xl bg-card p-8 text-center shadow-sm">
+          <div className="mt-6 rounded-4xl border border-line bg-card p-8 text-center">
             <p className="text-sm text-muted">Sign in to see your bookings.</p>
             <Link
               href="/login"
-              className="mt-4 inline-block rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary-hover"
+              className="mt-4 inline-block min-h-[44px] rounded-full bg-primary px-6 py-2.5 text-sm font-medium text-ink hover:bg-primary-hover"
             >
               Sign in
             </Link>
           </div>
         ) : error ? (
-          <p className="mt-6 text-sm text-danger">{error}</p>
+          <ErrorState title="Could not load bookings" message={error} onRetry={() => load()} />
         ) : bookings.length === 0 ? (
-          <div className="mt-6 flex flex-col items-center rounded-xl bg-card px-6 py-12 text-center shadow-sm">
-            <span className="flex h-12 w-12 items-center justify-center rounded-full bg-paper text-faint">
-              <CalendarX2 size={24} />
-            </span>
-            <h3 className="mt-3 font-semibold">No bookings yet</h3>
-            <p className="mt-1 text-sm text-muted">Find an experience and reserve your seat.</p>
-            <Link
-              href="/events"
-              className="mt-4 rounded-lg bg-ink px-4 py-2 text-sm font-medium text-white"
-            >
-              Browse events
-            </Link>
-          </div>
+          <EmptyState
+            icon={<CalendarX2 size={24} />}
+            title="No bookings yet"
+            message="Find an experience and reserve your seat."
+            action={
+              <Link
+                href="/events"
+                className="rounded-full bg-primary px-5 py-2.5 text-sm font-medium text-ink hover:bg-primary-hover"
+              >
+                Browse events
+              </Link>
+            }
+          />
         ) : (
-          <>
-            {message && <p className="mt-4 text-sm text-muted">{message}</p>}
-            <ul className="mt-4 space-y-4">
-              {bookings.map((booking) => {
-                const past = booking.event ? isPastEvent(booking.event.startsAt) : false;
-                const active = booking.status === 'confirmed' && !past;
-                return (
-                  <li key={booking.id} className="rounded-xl bg-card p-5 shadow-sm">
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        {booking.event ? (
-                          <Link
-                            href={`/events/${booking.event.id}`}
-                            className="font-semibold hover:text-primary"
-                          >
-                            {booking.event.title}
-                          </Link>
-                        ) : (
-                          <span className="font-semibold">Unknown event</span>
-                        )}
-                        {booking.event && (
-                          <p className="mt-1 text-sm text-muted">
-                            {formatDateTime(booking.event.startsAt)} · {booking.event.venue}
-                          </p>
-                        )}
-                        <p className="mt-1.5 text-xs">
-                          <span
-                            className={`rounded-full px-2 py-0.5 font-medium ${
-                              active ? 'bg-ok-bg text-ok-ink' : 'bg-zinc-200 text-zinc-600'
-                            }`}
-                          >
-                            {booking.status}
-                            {past ? ' · past event' : ''}
-                          </span>
-                        </p>
-                      </div>
-                      {active && (
-                        <button
-                          onClick={() => cancel(booking.id)}
-                          disabled={cancelling === booking.id}
-                          className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-line px-3 py-1.5 text-sm font-medium transition-colors hover:bg-paper disabled:opacity-50"
-                        >
-                          <TicketX size={15} />
-                          {cancelling === booking.id ? 'Cancelling…' : 'Cancel'}
-                        </button>
-                      )}
-                    </div>
-                  </li>
-                );
-              })}
-            </ul>
-          </>
+          <div className="mt-6 space-y-8">
+            {upcoming.length > 0 && (
+              <section aria-label="Upcoming bookings">
+                <h2 className="border-b border-ink/15 pb-3 font-display text-xl font-bold tracking-tight">
+                  Upcoming
+                </h2>
+                <ul className="mt-4 grid gap-4 md:grid-cols-2">
+                  {upcoming.map((b) => row(b, true))}
+                </ul>
+              </section>
+            )}
+            {others.length > 0 && (
+              <section aria-label="Past and cancelled bookings">
+                <h2 className="border-b border-ink/15 pb-3 font-display text-xl font-bold tracking-tight">
+                  Past and cancelled
+                </h2>
+                <ul className="mt-4 grid gap-4 md:grid-cols-2">
+                  {others.map((b) =>
+                    row(b, b.status === 'confirmed' && !(b.event && isPastEvent(b.event.startsAt))),
+                  )}
+                </ul>
+              </section>
+            )}
+          </div>
         )}
       </main>
     </div>
