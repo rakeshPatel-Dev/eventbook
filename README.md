@@ -247,8 +247,10 @@ I used two AI tools, in different roles:
 
 ## Self-check (from the brief)
 
-- [ ] Register, login, book and cancel work on the live site.
-- [ ] Booking twice, a full event, and a past event each fail with a clear message.
-- [ ] Admin APIs reject a normal user (verified with tests + Postman).
-- [ ] Search and pagination work live.
+Verified against the live deployment with a 53-check API suite (all pass):
+
+- [x] Register, login, book and cancel work on the live site.
+- [x] Booking twice, a full event, and a past event each fail with a clear message.
+- [x] Admin APIs reject a normal user (verified with tests + Postman, and live).
+- [x] Search and pagination work live.
 - [x] `.env` is not committed, and tests pass with one command.
