@@ -5,9 +5,10 @@ import { Pool, type PoolClient } from 'pg';
 
 // Repeatable seed for EventBook.
 // Usage: npm run db:seed (runs from apps/api).
-// Seeds the admin plus one demo user, four events (plenty of seats, nearly
-// full, another venue, and a past event) and a handful of bookings that
-// exercise the rules (cancel-then-rebook, ownership contrast, history).
+// Seeds the admin plus one demo user, a set of upcoming events (enough to
+// exercise pagination, including a nearly-full one) plus a past event, and a
+// handful of bookings that exercise the rules (cancel-then-rebook, ownership
+// contrast, history).
 // Fixed ids make every write an upsert, so re-running never duplicates.
 // The same seed runs locally and on the live database so reviewers can log
 // in with the test accounts documented in the README. No sessions are
@@ -173,6 +174,80 @@ async function seedEvents(client: PoolClient): Promise<void> {
       startsAt: daysFromNowIso(60),
       venue: 'Pokhara Lakeside Amphitheater',
       totalSeats: 50,
+    },
+    // Extra upcoming events so the paginated list spans more than one page
+    // (the UI requests 9 per page; the API caps limit at 50).
+    {
+      id: '77777777-7777-4777-8777-777777777771',
+      title: 'Design Systems Deep Dive',
+      description: 'Tokens, components, and keeping a UI consistent as it grows.',
+      startsAt: daysFromNowIso(3),
+      venue: 'Patan Studio',
+      totalSeats: 40,
+    },
+    {
+      id: '77777777-7777-4777-8777-777777777772',
+      title: 'Intro to Rust',
+      description: 'Ownership, borrowing, and your first CLI tool.',
+      startsAt: daysFromNowIso(5),
+      venue: 'Baneshwor Coding Club',
+      totalSeats: 25,
+    },
+    {
+      id: '77777777-7777-4777-8777-777777777773',
+      title: 'Product Analytics 101',
+      description: 'What to measure, and what the numbers actually mean.',
+      startsAt: daysFromNowIso(7),
+      venue: 'Durbar Marg Conference Hall',
+      totalSeats: 80,
+    },
+    {
+      id: '77777777-7777-4777-8777-777777777774',
+      title: 'Weekend Pottery Class',
+      description: 'Throw your first bowl. Materials included.',
+      startsAt: daysFromNowIso(9),
+      venue: 'Bhaktapur Crafts Center',
+      totalSeats: 12,
+    },
+    {
+      id: '77777777-7777-4777-8777-777777777775',
+      title: 'Startup Pitch Night',
+      description: 'Six founders, five minutes each, one room of investors.',
+      startsAt: daysFromNowIso(12),
+      venue: 'Naxal Innovation Hub',
+      totalSeats: 120,
+    },
+    {
+      id: '77777777-7777-4777-8777-777777777776',
+      title: 'Film Photography Walk',
+      description: 'Shoot a roll of 35mm through the old town.',
+      startsAt: daysFromNowIso(18),
+      venue: 'Patan Durbar Square',
+      totalSeats: 15,
+    },
+    {
+      id: '77777777-7777-4777-8777-777777777777',
+      title: 'Cloud Cost Optimization',
+      description: 'Where the bill actually goes, and how to cut it.',
+      startsAt: daysFromNowIso(21),
+      venue: 'Remote (live stream)',
+      totalSeats: 500,
+    },
+    {
+      id: '77777777-7777-4777-8777-777777777778',
+      title: 'Public Speaking Bootcamp',
+      description: 'A half-day of practice talks with feedback.',
+      startsAt: daysFromNowIso(25),
+      venue: 'Thamel Workshop Space',
+      totalSeats: 30,
+    },
+    {
+      id: '77777777-7777-4777-8777-777777777779',
+      title: 'Open Source Contribution Day',
+      description: 'Pick an issue, open a PR, get it reviewed.',
+      startsAt: daysFromNowIso(45),
+      venue: 'Kathmandu Tech Hub',
+      totalSeats: 60,
     },
     {
       id: EVENT_PAST_ID,
