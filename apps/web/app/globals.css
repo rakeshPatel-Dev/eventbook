@@ -2,20 +2,23 @@
 
 @theme {
   --font-sans: 'Geist', ui-sans-serif, system-ui, sans-serif;
+  --font-display: 'Space Grotesk', 'Geist', ui-sans-serif, system-ui, sans-serif;
 
-  --color-paper: #fbf9f6;
+  --color-paper: #faf8f5;
   --color-card: #ffffff;
-  --color-ink: #1b1c1a;
-  --color-muted: #59413c;
-  --color-faint: #8d706b;
-  --color-line: #e4e2df;
-  --color-primary: #ab2e16;
-  --color-primary-hover: #8d1702;
-  --color-primary-soft: #ffdad3;
-  --color-danger: #ba1a1a;
-  --color-danger-bg: #ffdad6;
-  --color-warn-bg: #ffedd5;
-  --color-warn-ink: #9a3412;
+  --color-ink: #16130e;
+  --color-muted: #57534e;
+  --color-faint: #a8a29e;
+  --color-line: #e8e0d4;
+  --color-primary: #ec8433;
+  --color-primary-hover: #cd731d;
+  --color-primary-soft: #fdeedc;
+  --color-primary-deep: #8f4e0e;
+  --color-navy: #164473;
+  --color-danger: #b91c1c;
+  --color-danger-bg: #fee2e2;
+  --color-warn-bg: #fef3c7;
+  --color-warn-ink: #92400e;
   --color-ok-bg: #dcfce7;
   --color-ok-ink: #166534;
 }
@@ -23,4 +26,57 @@
 body {
   background-color: var(--color-paper);
   color: var(--color-ink);
+  text-rendering: optimizeLegibility;
+}
+
+/* Single purposeful entrance: page hero reveal only */
+@keyframes page-rise {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.page-rise {
+  animation: page-rise 0.45s ease-out both;
+}
+
+/* Toast entrance (drops from top-right) */
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(-8px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.toast-in {
+  animation: toast-in 0.22s ease-out;
+}
+
+/* Solid skeleton blocks — no shimmer wash */
+.skeleton {
+  background: var(--color-line);
+}
+
+/* Ticket perforation edge */
+.ticket-edge {
+  background-image: linear-gradient(to right, var(--color-line) 55%, transparent 45%);
+  background-size: 10px 1px;
+  background-repeat: repeat-x;
+  height: 1px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .toast-in,
+  .page-rise {
+    animation: none;
+  }
 }
