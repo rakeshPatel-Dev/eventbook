@@ -192,13 +192,15 @@ requires HTTPS on both sides. The live database is seeded with the same
 
 ## AI usage
 
-I used an AI coding assistant as a pair-programmer for this project: it helped
-scaffold the Express/Next.js structure, draft route handlers, suggest the
-transaction/`FOR UPDATE` approach for the booking rules, write the integration
-tests, and tighten the wording of this README. I reviewed, ran and debugged
-everything, and I can explain each file. _TODO (before submitting): confirm the
-exact tool names/versions used and trim this paragraph to what actually
-happened._
+I used two AI tools, in different roles:
+
+- **OpenCode** (an AI coding agent) for the bulk of the implementation: it
+  helped scaffold the Express/Next.js structure, draft the route handlers and
+  middleware, suggest the `SELECT ... FOR UPDATE` transaction for the booking
+  rules, write the integration tests, and draft this README. I reviewed, ran
+  and debugged every change, and I can explain each file.
+- **Agent** (Cursor CLI) for the security pass: reviewing the auth, session
+  and booking code for issues, which produced `docs/security-analysis.md`.
 
 ## Known issues / next steps
 
