@@ -187,19 +187,21 @@ safely; test-account credentials are intentionally public per the brief.
 Three pieces: **Supabase** (PostgreSQL), **Render** (Express API), **Vercel**
 (Next.js web app). `render.yaml` is a blueprint for the API service.
 
-1. **Database (Supabase).** Create a project and copy its connection string,
-   appending `?sslmode=no-verify` — Supabase's root CA is self-signed, so Node
-   rejects `sslmode=require` (`SELF_SIGNED_CERT_IN_CHAIN`). Apply the schema and
-   seed it once:
+1. **Database (Supabase).** Create a project and copy its **connection pooler**
+   string (Connect → Session pooler), not the direct connection. Direct
+   connections (`db.<ref>.supabase.co`) are IPv6-only, and IPv4-only hosts such
+   as Render cannot reach them (`ENETUNREACH`). Append `?sslmode=no-verify` —
+   Supabase's root CA is self-signed, so Node rejects `sslmode=require`
+   (`SELF_SIGNED_CERT_IN_CHAIN`). Apply the schema and seed it once:
 
    ```bash
-   export DATABASE_URL='postgresql://postgres:<password>@db.<ref>.supabase.co:5432/postgres?sslmode=no-verify'
+   export DATABASE_URL='postgresql://postgres.<ref>:<password>@aws-0-<region>.pooler.supabase.com:5432/postgres?sslmode=no-verify'
    npm run db:init
    npm run db:seed
    ```
 
 2. **API (Render).** New → Blueprint → select this repo (`render.yaml` is picked
-   up). In the dashboard set `DATABASE_URL` (Supabase) and `FRONTEND_ORIGIN` (the
+   up). In the dashboard set `DATABASE_URL` (the pooler string above) and `FRONTEND_ORIGIN` (the
    Vercel URL, e.g. `https://eventbook.vercel.app`). The blueprint already sets
    `NODE_ENV=production` and `COOKIE_SAMESITE=none`; health check is
    `/api/health`. The free plan sleeps when idle, so the first request after a
