@@ -1,9 +1,9 @@
-export const MAX_TITLE_LENGTH = 200;
-export const MAX_VENUE_LENGTH = 200;
-export const MAX_DESCRIPTION_LENGTH = 5000;
-export const MAX_LIST_LIMIT = 50;
+const MAX_TITLE_LENGTH = 200;
+const MAX_VENUE_LENGTH = 200;
+const MAX_DESCRIPTION_LENGTH = 5000;
+const MAX_LIST_LIMIT = 50;
 
-export interface ParsedEvent {
+interface ParsedEvent {
   title?: string;
   description?: string;
   venue?: string;

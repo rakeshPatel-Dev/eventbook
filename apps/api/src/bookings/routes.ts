@@ -11,7 +11,7 @@ interface BookingRow {
   updated_at: Date;
 }
 
-export interface ApiBooking {
+interface ApiBooking {
   id: string;
   eventId: string;
   status: string;
@@ -42,72 +42,78 @@ export function createBookingsRouter(deps: BookingsRouterDeps): Router {
   // Book one seat. The event row is locked first so two concurrent requests
   // for the last seat cannot both succeed; the partial unique index stays
   // as a backstop and maps to the same 409.
-  router.post('/', requireAuth(pool), requireOrigin, async (req, res, next) => {
-    try {
-      const { event_id: eventId } = req.body as { event_id?: unknown };
-      if (typeof eventId !== 'string' || !isUuid(eventId)) {
-        res.status(400).json({ error: 'event_id must be a valid event id.' });
-        return;
-      }
-      const userId = req.auth?.userId as string;
-      const client = await pool.connect();
+  router.post(
+    '/',
+    requireAuth(pool),
+    requireXRequestedWith(),
+    requireOrigin,
+    async (req, res, next) => {
       try {
-        await client.query('BEGIN');
-        const locked = await client.query(
-          'SELECT id, starts_at, total_seats FROM events WHERE id = $1 FOR UPDATE',
-          [eventId],
-        );
-        if (locked.rowCount === 0) {
-          await client.query('ROLLBACK');
-          res.status(404).json({ error: 'Event not found.' });
+        const { event_id: eventId } = req.body as { event_id?: unknown };
+        if (typeof eventId !== 'string' || !isUuid(eventId)) {
+          res.status(400).json({ error: 'event_id must be a valid event id.' });
           return;
         }
-        const event = locked.rows[0] as { starts_at: Date; total_seats: number };
-        if (event.starts_at.getTime() <= Date.now()) {
-          await client.query('ROLLBACK');
-          res.status(409).json({ error: 'Past events cannot be booked.' });
-          return;
-        }
-        const existing = await client.query(
-          "SELECT id FROM bookings WHERE event_id = $1 AND user_id = $2 AND status = 'confirmed'",
-          [eventId, userId],
-        );
-        if ((existing.rowCount ?? 0) > 0) {
-          await client.query('ROLLBACK');
-          res.status(409).json({ error: 'You already hold a confirmed booking for this event.' });
-          return;
-        }
-        const counted = await client.query(
-          "SELECT count(*) AS n FROM bookings WHERE event_id = $1 AND status = 'confirmed'",
-          [eventId],
-        );
-        if (Number(counted.rows[0].n) >= event.total_seats) {
-          await client.query('ROLLBACK');
-          res.status(409).json({ error: 'Event is full.' });
-          return;
-        }
-        const inserted = await client.query(
-          `INSERT INTO bookings (user_id, event_id, status)
+        const userId = req.auth?.userId as string;
+        const client = await pool.connect();
+        try {
+          await client.query('BEGIN');
+          const locked = await client.query(
+            'SELECT id, starts_at, total_seats FROM events WHERE id = $1 FOR UPDATE',
+            [eventId],
+          );
+          if (locked.rowCount === 0) {
+            await client.query('ROLLBACK');
+            res.status(404).json({ error: 'Event not found.' });
+            return;
+          }
+          const event = locked.rows[0] as { starts_at: Date; total_seats: number };
+          if (event.starts_at.getTime() <= Date.now()) {
+            await client.query('ROLLBACK');
+            res.status(409).json({ error: 'Past events cannot be booked.' });
+            return;
+          }
+          const existing = await client.query(
+            "SELECT id FROM bookings WHERE event_id = $1 AND user_id = $2 AND status = 'confirmed'",
+            [eventId, userId],
+          );
+          if ((existing.rowCount ?? 0) > 0) {
+            await client.query('ROLLBACK');
+            res.status(409).json({ error: 'You already hold a confirmed booking for this event.' });
+            return;
+          }
+          const counted = await client.query(
+            "SELECT count(*) AS n FROM bookings WHERE event_id = $1 AND status = 'confirmed'",
+            [eventId],
+          );
+          if (Number(counted.rows[0].n) >= event.total_seats) {
+            await client.query('ROLLBACK');
+            res.status(409).json({ error: 'Event is full.' });
+            return;
+          }
+          const inserted = await client.query(
+            `INSERT INTO bookings (user_id, event_id, status)
            VALUES ($1, $2, 'confirmed')
            RETURNING id, event_id, status, created_at, updated_at`,
-          [userId, eventId],
-        );
-        await client.query('COMMIT');
-        res.status(201).json({ booking: toApiBooking(inserted.rows[0] as BookingRow) });
-      } catch (err) {
-        await client.query('ROLLBACK');
-        if ((err as { code?: string }).code === '23505') {
-          res.status(409).json({ error: 'You already hold a confirmed booking for this event.' });
-          return;
+            [userId, eventId],
+          );
+          await client.query('COMMIT');
+          res.status(201).json({ booking: toApiBooking(inserted.rows[0] as BookingRow) });
+        } catch (err) {
+          await client.query('ROLLBACK');
+          if ((err as { code?: string }).code === '23505') {
+            res.status(409).json({ error: 'You already hold a confirmed booking for this event.' });
+            return;
+          }
+          throw err;
+        } finally {
+          client.release();
         }
-        throw err;
-      } finally {
-        client.release();
+      } catch (err) {
+        next(err);
       }
-    } catch (err) {
-      next(err);
-    }
-  });
+    },
+  );
 
   // The caller's own bookings, newest first, with the event facts needed
   // to display them (admin attendee lists stay on the admin endpoint).

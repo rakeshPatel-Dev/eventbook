@@ -15,8 +15,8 @@ import { requireAdmin, requireAuth } from './middleware.js';
 import { hashPassword, verifyPassword } from './password.js';
 
 // Integration tests against a real PostgreSQL database. Nothing is mocked:
-// the app, the pool, and every query run for real. RequireAdmin is invoked
-// directly only because no admin-only HTTP route exists yet.
+// the app, the pool, and every query run for real. The auth middlewares are
+// additionally unit-tested directly (see 'requireAdmin allows admins...').
 // Run: TEST_DATABASE_URL=postgresql://.../eventbook_test npm test --workspace=apps/api
 
 const SESSION_COOKIE_PREFIX = `${SESSION_COOKIE_NAME}=`;

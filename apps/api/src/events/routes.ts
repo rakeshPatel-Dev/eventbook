@@ -21,7 +21,7 @@ interface EventRow {
   updated_at: Date;
 }
 
-export interface ApiEvent {
+interface ApiEvent {
   id: string;
   title: string;
   description: string;
@@ -89,7 +89,6 @@ export function createEventsRouter(deps: EventsRouterDeps): Router {
   const requireOrigin = requireSameOrigin(frontendOrigin);
 
   // Public: upcoming events only, searchable by title, server-paginated.
-  // ?past_only=true flips to previous events, newest first (also public).
   router.get('/', requireAdminScope(pool), async (req, res, next) => {
     try {
       const pagination = parsePagination(req.query);
@@ -97,16 +96,11 @@ export function createEventsRouter(deps: EventsRouterDeps): Router {
         res.status(400).json({ error: pagination.error });
         return;
       }
-      const pastOnly = req.query.past_only !== undefined;
-      if (pastOnly && req.query.past_only !== 'true') {
-        res.status(400).json({ error: "past_only must be 'true'." });
-        return;
-      }
       const search = typeof req.query.search === 'string' ? req.query.search.trim() : '';
       const upcomingOnly = req.query.scope !== 'all';
       const where: string[] = [];
       if (upcomingOnly) {
-        where.push(pastOnly ? 'e.starts_at <= now()' : 'e.starts_at > now()');
+        where.push('e.starts_at > now()');
       }
       const params: unknown[] = [];
       if (search) {
@@ -122,7 +116,7 @@ export function createEventsRouter(deps: EventsRouterDeps): Router {
       const listResult = await pool.query(
         `SELECT ${EVENT_COLUMNS} ${FROM_EVENTS_WITH_SEATS}
          ${where.length ? `WHERE ${where.join(' AND ')}` : ''}
-         GROUP BY e.id ORDER BY e.starts_at ${pastOnly ? 'DESC' : 'ASC'}
+         GROUP BY e.id ORDER BY e.starts_at ASC
          LIMIT $${params.length + 1} OFFSET $${params.length + 2}`,
         [...params, pagination.limit, offset],
       );

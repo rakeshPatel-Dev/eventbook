@@ -10,11 +10,11 @@ export interface SessionUser {
 
 // Opaque 256-bit token. Only this hex string ever leaves the server
 // (inside the HttpOnly cookie); the database keeps just its SHA-256 hash.
-export function generateToken(): string {
+function generateToken(): string {
   return randomBytes(32).toString('hex');
 }
 
-export function hashToken(token: string): string {
+function hashToken(token: string): string {
   return createHash('sha256').update(token, 'utf8').digest('hex');
 }
 

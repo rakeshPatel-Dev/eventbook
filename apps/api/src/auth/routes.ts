@@ -13,7 +13,7 @@ import { burnLoginTiming, hashPassword, verifyPassword } from './password.js';
 import { createSession, deleteExpiredSessions, deleteSessionByToken } from './sessions.js';
 import { isValidEmail, normalizeEmail, passwordError } from './validation.js';
 
-export interface SafeUser {
+interface SafeUser {
   id: string;
   email: string;
   role: string;

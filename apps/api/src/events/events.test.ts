@@ -208,19 +208,4 @@ describe('events', () => {
     const invalid = await api(ctx.baseUrl, '/api/events?scope=everything', {}, adminCookie);
     assert.equal(invalid.res.status, 400);
   });
-
-  it('lists previous events publicly with past_only', async () => {
-    await createEvent(ctx.baseUrl, adminCookie, WORKSHOP);
-    await createEvent(ctx.baseUrl, adminCookie, { ...WORKSHOP, starts_at: pastIso(30) });
-
-    const past = await api(ctx.baseUrl, '/api/events?past_only=true');
-    assert.equal(past.res.status, 200);
-    assert.equal((past.body?.pagination as { total: number }).total, 1);
-
-    const upcoming = await api(ctx.baseUrl, '/api/events');
-    assert.equal((upcoming.body?.pagination as { total: number }).total, 1);
-
-    const invalid = await api(ctx.baseUrl, '/api/events?past_only=yes');
-    assert.equal(invalid.res.status, 400);
-  });
 });

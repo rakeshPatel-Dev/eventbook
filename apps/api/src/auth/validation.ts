@@ -2,11 +2,11 @@
 // rejected values fail fast here with the same definition as PostgreSQL.
 const EMAIL_PATTERN = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
 
-export const MIN_PASSWORD_LENGTH = 8;
+const MIN_PASSWORD_LENGTH = 8;
 // bcrypt only uses the first 72 bytes; longer input would silently weaken
 // the password, so it is rejected instead.
-export const MAX_PASSWORD_LENGTH = 72;
-export const MAX_EMAIL_LENGTH = 254;
+const MAX_PASSWORD_LENGTH = 72;
+const MAX_EMAIL_LENGTH = 254;
 
 export function normalizeEmail(email: string): string {
   return email.trim().toLowerCase();

@@ -53,10 +53,16 @@ export function createApp(options: AppOptions): express.Express {
 
   app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
     console.error(err);
-    // express.json() marks its own parse failures with status 400; those are
-    // client errors, everything else is an internal failure.
-    if ((err as { status?: unknown }).status === 400) {
+    // express.json() tags its own failures with a 4xx status: 400 for malformed
+    // JSON and 413 when the payload exceeds the limit. Those are client errors;
+    // anything with no client status is our own fault → 500.
+    const status = (err as { status?: unknown }).status;
+    if (status === 400) {
       res.status(400).json({ error: 'Invalid JSON in request body.' });
+      return;
+    }
+    if (status === 413) {
+      res.status(413).json({ error: 'Request body too large.' });
       return;
     }
     res.status(500).json({ error: 'Internal Server Error' });
