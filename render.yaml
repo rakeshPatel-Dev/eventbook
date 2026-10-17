@@ -1,0 +1,22 @@
+# Render blueprint for the EventBook API (https://render.com/docs/blueprint-spec).
+# Create a Supabase project first, then set DATABASE_URL and FRONTEND_ORIGIN in
+# the Render dashboard (marked sync: false so secrets are not stored here).
+# After the first deploy, seed the live database once:
+#   DATABASE_URL=<supabase-url> npm run db:init && DATABASE_URL=<supabase-url> npm run db:seed
+services:
+  - type: web
+    name: eventbook-api
+    runtime: node
+    plan: free
+    buildCommand: npm ci && npm run build:api
+    startCommand: npm run start --workspace=apps/api
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: COOKIE_SAMESITE
+        value: none
+      - key: DATABASE_URL
+        sync: false
+      - key: FRONTEND_ORIGIN
+        sync: false
