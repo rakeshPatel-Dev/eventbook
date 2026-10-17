@@ -182,12 +182,37 @@ safely; test-account credentials are intentionally public per the brief.
 | `SEED_ADMIN_PASSWORD` | api | Optional override for the seeded admin password                          |
 | `NEXT_PUBLIC_API_URL` | web | Public Express base URL, e.g. `http://localhost:4000`                    |
 
-## Deployment notes
+## Deploy (Supabase + Render + Vercel)
 
-Cross-site hosting (e.g. Vercel frontend + Render/Railway API) needs
-`COOKIE_SAMESITE=none`, `NODE_ENV=production` (for `Secure` cookies), and
-`FRONTEND_ORIGIN` set to the exact public frontend URL; `SameSite=None`
-requires HTTPS on both sides. The live database is seeded with the same
+Three pieces: **Supabase** (PostgreSQL), **Render** (Express API), **Vercel**
+(Next.js web app). `render.yaml` is a blueprint for the API service.
+
+1. **Database (Supabase).** Create a project, copy its connection string, and
+   append `?sslmode=require` (do not disable certificate verification). Apply
+   the schema and seed it once:
+
+   ```bash
+   export DATABASE_URL='postgresql://postgres:<password>@db.<ref>.supabase.co:5432/postgres?sslmode=require'
+   npm run db:init
+   npm run db:seed
+   ```
+
+2. **API (Render).** New → Blueprint → select this repo (`render.yaml` is picked
+   up). In the dashboard set `DATABASE_URL` (Supabase) and `FRONTEND_ORIGIN` (the
+   Vercel URL, e.g. `https://eventbook.vercel.app`). The blueprint already sets
+   `NODE_ENV=production` and `COOKIE_SAMESITE=none`; health check is
+   `/api/health`. The free plan sleeps when idle, so the first request after a
+   pause can take ~30s — expected, not a bug.
+
+3. **Web (Vercel).** Import the repo, set **Root Directory** to `apps/web`, and
+   add `NEXT_PUBLIC_API_URL=https://<your-api>.onrender.com`. Deploy.
+
+4. **Verify.** Run the brief's self-check on the live site: register/login/book/
+   cancel, double-book, full, past, admin-only APIs, search and pagination.
+
+The web app and API are on different sites, so the session cookie is
+`SameSite=None; Secure`; browsers only accept that over HTTPS, which Vercel and
+Render provide by default. The live database is seeded with the same
 `npm run db:seed`, so the test accounts above work there too.
 
 ## AI usage
