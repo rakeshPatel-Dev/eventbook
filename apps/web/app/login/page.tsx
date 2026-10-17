@@ -22,7 +22,7 @@ function LoginForm() {
   const searchParams = useSearchParams();
   const [serverError, setServerError] = useState<string | null>(null);
   const [showPassword, setShowPassword] = useState(false);
-  const { error: toastError, loading: loadingToast } = useToast();
+  const { loading: loadingToast } = useToast();
   const {
     register,
     handleSubmit,

@@ -30,7 +30,6 @@ interface ToastHandle {
 }
 
 interface ToastContextValue {
-  toast: (kind: ToastKind, title: string, desc?: string) => number;
   // Shows a sticky "working…" toast; call the returned handle when done.
   loading: (title: string, desc?: string) => ToastHandle;
   success: (title: string, desc?: string) => void;
@@ -129,7 +128,6 @@ export function ToastProvider({ children }: { children: ReactNode }) {
 
   const value = useMemo<ToastContextValue>(
     () => ({
-      toast,
       loading,
       success: (title, desc) => toast('success', title, desc),
       error: (title, desc) => toast('error', title, desc),

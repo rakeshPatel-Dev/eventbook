@@ -1,14 +1,19 @@
 'use client';
 
-import { ArrowLeft, CalendarDays, CheckCircle2, Link2, MapPin, Ticket, Users } from 'lucide-react';
+import { ArrowLeft, CalendarDays, CheckCircle2, MapPin, Ticket, Users } from 'lucide-react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { useCallback, useEffect, useState } from 'react';
-import { api, friendlyErrorMessage, type ApiEvent, type ApiUser } from '../../../lib/api';
+import {
+  api,
+  friendlyErrorMessage,
+  type ApiBooking,
+  type ApiEvent,
+  type ApiUser,
+} from '../../../lib/api';
 import { ErrorState } from '../../components/Feedback';
 import { useMyBookings } from '../../components/MyBookings';
 import Nav from '../../components/Nav';
-import EventCard from '../../components/EventCard';
 import {
   calendarParts,
   CapacityMeter,
@@ -32,8 +37,7 @@ export default function EventDetailPage() {
   // the global provider cache, so the state is always fresh for this event.
   // null = still checking, false = no confirmed booking, true = holds one.
   const [heldBooking, setHeldBooking] = useState<boolean | null>(null);
-  const [more, setMore] = useState<ApiEvent[]>([]);
-  const { success, error: toastError, info: toastInfo, loading: loadingToast } = useToast();
+  const { error: toastError, info: toastInfo, loading: loadingToast } = useToast();
   const { confirmedIds, refresh: refreshBookings } = useMyBookings();
 
   const load = useCallback(async () => {
@@ -55,9 +59,7 @@ export default function EventDetailPage() {
       setUser(viewer);
       if (viewer) {
         try {
-          const mine = await api<{ bookings: import('../../../lib/api').ApiBooking[] }>(
-            '/api/bookings/mine',
-          );
+          const mine = await api<{ bookings: ApiBooking[] }>('/api/bookings/mine');
           if (mine.status === 200 && mine.data) {
             setHeldBooking(
               mine.data.bookings.some(
@@ -85,30 +87,6 @@ export default function EventDetailPage() {
   useEffect(() => {
     void load();
   }, [load]);
-
-  // "More to explore" rail: other upcoming events, current one excluded.
-  // Secondary content — fails silently so it never blocks the detail.
-  useEffect(() => {
-    if (!event) {
-      return;
-    }
-    const currentId = event.id;
-    let cancelled = false;
-    async function run() {
-      try {
-        const { status, data } = await api<{ events: ApiEvent[] }>('/api/events?page=1&limit=4');
-        if (!cancelled && status === 200 && data) {
-          setMore(data.events.filter((e) => e.id !== currentId).slice(0, 3));
-        }
-      } catch {
-        /* ignore: rail simply stays hidden */
-      }
-    }
-    void run();
-    return () => {
-      cancelled = true;
-    };
-  }, [event]);
 
   async function book() {
     if (!event) {
@@ -143,18 +121,8 @@ export default function EventDetailPage() {
     }
   }
 
-  async function copyLink() {
-    try {
-      await navigator.clipboard.writeText(window.location.href);
-      success('Link copied', 'Share this event with a friend.');
-    } catch {
-      toastError('Copy failed', 'Your browser blocked clipboard access.');
-    }
-  }
-
   const past = event ? isPastEvent(event.startsAt) : false;
   const state = event ? eventState(event) : 'available';
-  const full = state === 'soldout';
   const low = state === 'tight' || state === 'critical';
   // Direct check wins once loaded; the provider covers the brief checking window.
   const held = event
@@ -185,14 +153,6 @@ export default function EventDetailPage() {
           >
             <ArrowLeft size={15} /> All events
           </Link>
-          {event && (
-            <button
-              onClick={copyLink}
-              className="inline-flex min-h-[44px] items-center gap-1.5 rounded-full border border-line bg-card px-4 py-1.5 text-sm text-muted transition-colors hover:text-ink"
-            >
-              <Link2 size={14} /> Share
-            </button>
-          )}
         </div>
         {loading ? (
           <div
@@ -419,26 +379,6 @@ export default function EventDetailPage() {
                 </div>
               </div>
             </article>
-            {more.length > 0 && (
-              <section aria-label="More to explore" className="mt-12">
-                <div className="flex items-baseline justify-between gap-3 border-b border-ink/15 pb-4">
-                  <h2 className="font-display text-2xl font-bold tracking-tight">
-                    More you can explore
-                  </h2>
-                  <Link
-                    href="/events"
-                    className="shrink-0 text-sm font-semibold text-primary-deep hover:underline"
-                  >
-                    Browse all
-                  </Link>
-                </div>
-                <div className="grid grid-cols-1 gap-5 pt-6 md:grid-cols-2 lg:grid-cols-3">
-                  {more.map((e) => (
-                    <EventCard key={e.id} event={e} booked={confirmedIds.has(e.id)} />
-                  ))}
-                </div>
-              </section>
-            )}
           </>
         )}
       </main>

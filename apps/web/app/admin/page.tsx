@@ -116,12 +116,11 @@ export default function AdminPage() {
   const [attendees, setAttendees] = useState<Record<string, Attendee[]>>({});
   const [openAttendees, setOpenAttendees] = useState<Record<string, boolean>>({});
   const [attendeeErrors, setAttendeeErrors] = useState<Record<string, string>>({});
-  const [attendeeQuery, setAttendeeQuery] = useState<Record<string, string>>({});
   const [query, setQuery] = useState('');
   const [tab, setTab] = useState<StatusTab>('all');
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
-  const { success, error: toastError, loading: loadingToast } = useToast();
+  const { error: toastError, loading: loadingToast } = useToast();
 
   const createForm = useForm<EventForm>({ defaultValues: EMPTY_FORM });
   const editForm = useForm<EventForm>({ defaultValues: EMPTY_FORM });
@@ -308,30 +307,6 @@ export default function AdminPage() {
     if (open && !attendees[id]) {
       await loadAttendees(id);
     }
-  }
-
-  // CSV of the already-loaded roster — real data only, generated client-side.
-  function exportRoster(event: ApiEvent) {
-    const list = attendees[event.id] ?? [];
-    const rows = [
-      ['email', 'booked_at', 'event', 'venue'],
-      ...list.map((a) => [a.email, a.createdAt, event.title, event.venue]),
-    ];
-    const csv = rows
-      .map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(','))
-      .join('\n');
-    const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `attendees-${event.id.slice(0, 8)}.csv`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
-    success(
-      'Roster exported',
-      `${list.length} ${list.length === 1 ? 'row' : 'rows'} saved as CSV.`,
-    );
   }
 
   const metrics = useMemo(() => {
@@ -735,7 +710,6 @@ export default function AdminPage() {
                         </tr>
                       ) : (
                         <Fragment key={event.id}>
-                          {' '}
                           <tr key={event.id} className="group transition-colors hover:bg-paper/60">
                             <td className="px-5 py-4">
                               <div className="flex min-w-[240px] items-center gap-3">
@@ -799,41 +773,14 @@ export default function AdminPage() {
                           {openAttendees[event.id] && (
                             <tr key={`${event.id}-attendees`}>
                               <td colSpan={5} className="bg-paper/60 px-5 py-4 sm:px-6">
-                                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                                  <p className="text-sm font-semibold">
-                                    Attendees
-                                    {attendees[event.id] && (
-                                      <span className="ml-2 rounded-full bg-card px-2 py-0.5 text-xs font-medium tabular-nums text-muted ring-1 ring-line">
-                                        {attendees[event.id].length}
-                                      </span>
-                                    )}
-                                  </p>
-                                  <div className="flex items-center gap-2">
-                                    <div className="flex items-center gap-2 rounded-full border border-line bg-card px-3 py-1.5 focus-within:border-ink/40">
-                                      <Search size={14} className="shrink-0 text-faint" />
-                                      <input
-                                        type="search"
-                                        aria-label={`Search attendees of ${event.title}`}
-                                        placeholder="Search roster…"
-                                        value={attendeeQuery[event.id] ?? ''}
-                                        onChange={(e) =>
-                                          setAttendeeQuery((prev) => ({
-                                            ...prev,
-                                            [event.id]: e.target.value,
-                                          }))
-                                        }
-                                        className="w-40 bg-transparent text-sm outline-none placeholder:text-faint [&::-webkit-search-cancel-button]:hidden"
-                                      />
-                                    </div>
-                                    <button
-                                      onClick={() => exportRoster(event)}
-                                      disabled={!attendees[event.id]?.length}
-                                      className="inline-flex min-h-[40px] items-center rounded-full border border-line bg-card px-4 text-sm font-medium transition-colors hover:bg-paper disabled:opacity-50"
-                                    >
-                                      Export CSV
-                                    </button>
-                                  </div>
-                                </div>
+                                <p className="text-sm font-semibold">
+                                  Attendees
+                                  {attendees[event.id] && (
+                                    <span className="ml-2 rounded-full bg-card px-2 py-0.5 text-xs font-medium tabular-nums text-muted ring-1 ring-line">
+                                      {attendees[event.id].length}
+                                    </span>
+                                  )}
+                                </p>
                                 <div className="mt-3 text-sm">
                                   {attendeeErrors[event.id] && !attendees[event.id] ? (
                                     <p className="text-danger">
@@ -847,48 +794,30 @@ export default function AdminPage() {
                                     </p>
                                   ) : !attendees[event.id] ? (
                                     <p className="text-muted">Loading…</p>
+                                  ) : attendees[event.id].length === 0 ? (
+                                    <p className="text-muted">No bookings yet.</p>
                                   ) : (
-                                    (() => {
-                                      const q = (attendeeQuery[event.id] ?? '')
-                                        .trim()
-                                        .toLowerCase();
-                                      const list = attendees[event.id].filter((a) =>
-                                        q ? a.email.toLowerCase().includes(q) : true,
-                                      );
-                                      if (attendees[event.id].length === 0) {
-                                        return <p className="text-muted">No bookings yet.</p>;
-                                      }
-                                      if (list.length === 0) {
-                                        return (
-                                          <p className="text-muted">
-                                            No attendee matches “{attendeeQuery[event.id]}”.
-                                          </p>
-                                        );
-                                      }
-                                      return (
-                                        <ul className="grid gap-2 sm:grid-cols-2">
-                                          {list.map((a) => (
-                                            <li
-                                              key={a.id}
-                                              className="flex items-center gap-2.5 rounded-2xl border border-line bg-card px-3 py-2"
-                                            >
-                                              <span
-                                                aria-hidden="true"
-                                                className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-bold ${avatarTint(a.email)}`}
-                                              >
-                                                {initials(a.email)}
-                                              </span>
-                                              <span className="min-w-0 flex-1 truncate text-muted">
-                                                {a.email}
-                                              </span>
-                                              <span className="shrink-0 rounded-full bg-ok-bg px-2 py-0.5 text-[11px] font-semibold text-ok-ink">
-                                                Confirmed
-                                              </span>
-                                            </li>
-                                          ))}
-                                        </ul>
-                                      );
-                                    })()
+                                    <ul className="grid gap-2 sm:grid-cols-2">
+                                      {attendees[event.id].map((a) => (
+                                        <li
+                                          key={a.id}
+                                          className="flex items-center gap-2.5 rounded-2xl border border-line bg-card px-3 py-2"
+                                        >
+                                          <span
+                                            aria-hidden="true"
+                                            className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-bold ${avatarTint(a.email)}`}
+                                          >
+                                            {initials(a.email)}
+                                          </span>
+                                          <span className="min-w-0 flex-1 truncate text-muted">
+                                            {a.email}
+                                          </span>
+                                          <span className="shrink-0 rounded-full bg-ok-bg px-2 py-0.5 text-[11px] font-semibold text-ok-ink">
+                                            Confirmed
+                                          </span>
+                                        </li>
+                                      ))}
+                                    </ul>
                                   )}
                                 </div>
                               </td>

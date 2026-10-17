@@ -14,7 +14,7 @@ export default function Nav() {
   const router = useRouter();
   const [user, setUser] = useState<ApiUser | null>(null);
   const [loggingOut, setLoggingOut] = useState(false);
-  const { error: toastError, loading } = useToast();
+  const { loading } = useToast();
 
   const loadMe = useCallback(async () => {
     try {

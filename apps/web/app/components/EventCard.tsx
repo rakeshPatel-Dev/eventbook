@@ -20,7 +20,6 @@ export default function EventCard({
 }: {
   event: ApiEvent;
   booked?: boolean;
-  featured?: boolean;
 }) {
   const cal = calendarParts(event.startsAt);
   const past = isPastEvent(event.startsAt);

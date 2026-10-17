@@ -10,7 +10,6 @@ export interface CalendarParts {
   weekday: string;
   year: string;
   time: string;
-  dateLong: string;
   relative: string;
   iso: string;
 }
@@ -43,32 +42,15 @@ function relativeLabel(startsAt: string): string {
 export function calendarParts(startsAt: string): CalendarParts {
   const date = new Date(startsAt);
   const time = date.toLocaleString('en-US', { hour: 'numeric', minute: '2-digit' });
-  const dateLong = date.toLocaleString('en-US', {
-    weekday: 'long',
-    month: 'long',
-    day: 'numeric',
-    year: 'numeric',
-  });
   return {
     month: date.toLocaleString('en-US', { month: 'short' }).toUpperCase(),
     day: String(date.getDate()),
     weekday: date.toLocaleString('en-US', { weekday: 'short' }),
     year: String(date.getFullYear()),
     time,
-    dateLong,
     relative: relativeLabel(startsAt),
     iso: date.toISOString(),
   };
-}
-
-export function formatDateTime(startsAt: string): string {
-  return new Date(startsAt).toLocaleString('en-US', {
-    weekday: 'short',
-    month: 'short',
-    day: 'numeric',
-    hour: 'numeric',
-    minute: '2-digit',
-  });
 }
 
 export function formatDateLong(startsAt: string): string {

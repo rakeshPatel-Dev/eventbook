@@ -10,11 +10,8 @@ import { useToast } from '../components/Toast';
 
 interface SectionProps {
   title: string;
-  pastOnly: boolean;
   search: string;
   emptyHint: string;
-  featured?: boolean;
-  compact?: boolean;
 }
 
 function Pager({
@@ -52,14 +49,7 @@ function Pager({
   );
 }
 
-export function EventSection({
-  title,
-  pastOnly,
-  search,
-  emptyHint,
-  featured = false,
-  compact = false,
-}: SectionProps) {
+export function EventSection({ title, search, emptyHint }: SectionProps) {
   const [events, setEvents] = useState<ApiEvent[]>([]);
   const [pagination, setPagination] = useState<Pagination | null>(null);
   const [page, setPage] = useState(1);
@@ -71,7 +61,7 @@ export function EventSection({
 
   useEffect(() => {
     setPage(1);
-  }, [search, pastOnly]);
+  }, [search]);
 
   useEffect(() => {
     let cancelled = false;
@@ -82,9 +72,6 @@ export function EventSection({
         const params = new URLSearchParams({ page: String(page), limit: '9' });
         if (search) {
           params.set('search', search);
-        }
-        if (pastOnly) {
-          params.set('past_only', 'true');
         }
         const { status, data } = await api<{ events: ApiEvent[]; pagination: Pagination }>(
           `/api/events?${params.toString()}`,
@@ -116,10 +103,10 @@ export function EventSection({
     return () => {
       cancelled = true;
     };
-  }, [search, page, pastOnly, retryKey]);
+  }, [search, page, retryKey]);
 
   return (
-    <section aria-label={title || (pastOnly ? 'Previous events' : 'Upcoming events')}>
+    <section aria-label={title || 'Upcoming events'}>
       {title && (
         <div className="flex items-baseline gap-3 border-b border-ink/15 pb-4">
           <h2 className="font-display text-2xl font-bold tracking-tight">{title}</h2>
@@ -132,7 +119,7 @@ export function EventSection({
       )}
 
       {loading ? (
-        <CardSkeletonGrid count={compact ? 3 : 6} />
+        <CardSkeletonGrid />
       ) : error ? (
         <ErrorState
           title="Could not load events"

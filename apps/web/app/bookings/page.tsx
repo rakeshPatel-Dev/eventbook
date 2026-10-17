@@ -96,7 +96,6 @@ export default function BookingsPage() {
   );
 
   function row(booking: ApiBooking, active: boolean) {
-    const past = booking.event ? isPastEvent(booking.event.startsAt) : false;
     const confirming = confirmId === booking.id;
     const cal = booking.event ? calendarParts(booking.event.startsAt) : null;
     return (

@@ -45,9 +45,9 @@ export default function EventsPage() {
                 <X size={16} />
               </button>
             ) : (
-              <kbd className="mr-3 hidden shrink-0 rounded-md border border-line bg-paper px-2 py-1 text-xs text-faint sm:inline">
+              <span className="mr-3 hidden shrink-0 rounded-md border border-line bg-paper px-2 py-1 text-xs text-faint sm:inline">
                 Type to filter
-              </kbd>
+              </span>
             )}
           </div>
           {committedSearch && (
@@ -67,35 +67,13 @@ export default function EventsPage() {
         <div className="space-y-12 pb-16">
           <EventSection
             title="Upcoming"
-            pastOnly={false}
             search={committedSearch}
-            featured
             emptyHint={
               committedSearch
                 ? `Nothing matches “${committedSearch}”. Try a different title.`
                 : 'No upcoming events yet. Check back soon.'
             }
           />
-          <details className="group rounded-4xl border border-line bg-card/50">
-            <summary className="cursor-pointer list-none px-5 py-4 text-sm font-semibold transition-colors hover:bg-card [&::-webkit-details-marker]:hidden">
-              <span className="inline-flex items-center gap-2">
-                <span className="inline-block transition-transform group-open:rotate-90">›</span>
-                Previous events
-              </span>
-              <span className="ml-2 font-normal text-muted">
-                Ended shows stay visible for reference
-              </span>
-            </summary>
-            <div className="px-4 pb-6 sm:px-5">
-              <EventSection
-                title=""
-                pastOnly={true}
-                search={committedSearch}
-                compact
-                emptyHint="No past events yet."
-              />
-            </div>
-          </details>
         </div>
       </main>
     </div>

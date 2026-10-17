@@ -102,14 +102,3 @@ export function CardSkeletonGrid({ count = 6 }: { count?: number }) {
     </div>
   );
 }
-
-export function InlineBanner({ message }: { message: string }) {
-  return (
-    <p
-      role="alert"
-      className="mt-3 rounded-xl border border-line bg-danger-bg/50 px-3 py-2 text-sm text-danger"
-    >
-      {message}
-    </p>
-  );
-}
