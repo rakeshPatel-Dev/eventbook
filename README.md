@@ -47,7 +47,7 @@ play with.
   - `src/test/helper.ts` — shared integration-test harness.
 - `database/schema.sql` — the full schema.
 - `database/seed.ts` — repeatable seed (`npm run db:seed`).
-- `docs/` — brief, architecture notes, build phases, security analysis.
+- `docs/` — the project brief and architecture notes.
 
 No Next.js API routes, route handlers, or server actions are used as the
 backend, and the frontend never queries PostgreSQL directly.
@@ -230,13 +230,12 @@ I used two AI tools, in different roles:
   rules, write the integration tests, and draft this README. I reviewed, ran
   and debugged every change, and I can explain each file.
 - **Agent** (Cursor CLI) for the security pass: reviewing the auth, session
-  and booking code for issues, which produced `docs/security-analysis.md`.
+  and booking code for issues.
 
 ## Known issues / next steps
 
-- **Deployment.** The live links at the top are the last step. The API and web
-  app are deployed separately; the free API tier may sleep, so the first request
-  can take a few seconds.
+- **Deployment.** The API and web app are deployed separately (Render + Vercel).
+  The free API tier sleeps when idle, so the first request can take ~30 seconds.
 - **Docker Compose** for local development is not set up (a bonus item).
 - **Concurrency** is implemented and covered by a test (two requests for the
   last seat), and explained under "Decisions & trade-offs".
