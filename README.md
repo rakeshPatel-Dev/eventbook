@@ -206,6 +206,8 @@ Three pieces: **Supabase** (PostgreSQL), **Render** (Express API), **Vercel**
 
 3. **Web (Vercel).** Import the repo, set **Root Directory** to `apps/web`, and
    add `NEXT_PUBLIC_API_URL=https://<your-api>.onrender.com`. Deploy.
+   (`apps/web/vercel.json` pins the framework and adds security headers; the
+   Root Directory is the setting that matters for this monorepo.)
 
 4. **Verify.** Run the brief's self-check on the live site: register/login/book/
    cancel, double-book, full, past, admin-only APIs, search and pagination.
