@@ -8,7 +8,9 @@ services:
     name: eventbook-api
     runtime: node
     plan: free
-    buildCommand: npm ci && npm run build:api
+    # --include=dev is required: NODE_ENV=production makes npm omit
+    # devDependencies, but the build needs typescript and @types/node.
+    buildCommand: npm ci --include=dev && npm run build:api
     startCommand: npm run start --workspace=apps/api
     healthCheckPath: /api/health
     envVars:
