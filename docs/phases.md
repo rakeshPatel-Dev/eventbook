@@ -15,10 +15,11 @@ the live site.
 - [x] PostgreSQL schema (`database/schema.sql`): `users`, `events`, `bookings`,
       `sessions`. Partial unique index for one confirmed booking per user/event,
       `ON DELETE RESTRICT` everywhere, no triggers, no ORM.
-- [x] Repeatable seed (`database/seed.ts`, `ALLOW_DEMO_SEED=true`): admin +
-      demo user, 4 events (plenty, nearly full, other venue, past), 7 bookings
-      with cancel/rebook chronology. Production path bootstraps the admin only
-      with a strong `SEED_ADMIN_PASSWORD`, never logged.
+- [x] Repeatable seed (`database/seed.ts`): admin + demo user, 4 events
+      (plenty, nearly full, other venue, past), 7 bookings with cancel/rebook
+      chronology. Idempotent upserts; the same seed runs locally and on the
+      live database so reviewers can use the README test accounts. Optional
+      `SEED_ADMIN_PASSWORD` override; passwords are never logged in production.
 
 ### Phase 1 — Auth backend + minimal auth frontend
 
@@ -64,7 +65,7 @@ the live site.
 
 ### Phase 5 — Deploy early, then verify live (compulsory)
 
-- [ ] Supabase project → `db:init` + production seed (admin only) → API on
+- [ ] Supabase project → `db:init` + seed (admin + demo data) → API on
       Render/Railway → web on Vercel (`COOKIE_SAMESITE=none`, `NODE_ENV`
       production for `Secure`, exact public `FRONTEND_ORIGIN`, HTTPS both sides).
 - [ ] Run the brief's live self-check: register/login/book/cancel, double-book,

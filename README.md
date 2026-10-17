@@ -1,198 +1,222 @@
 # EventBook
 
-Full-stack event booking application (foundation). npm workspaces monorepo.
+A small event booking app: an **admin** publishes events with a fixed number of
+seats, **visitors** browse them, and **registered users** book and cancel a
+seat. Seats are never overbooked.
 
-## Architecture
+The frontend and backend are separate: the Next.js app talks only to my own
+Express REST API, and only that API talks to PostgreSQL.
 
-- `apps/web`: Next.js App Router + TypeScript + Tailwind CSS. Frontend only.
-- `apps/api`: Express + TypeScript + `pg` connection pool. Sole database client.
-- `apps/api/src/db/pool.ts`: PostgreSQL connection-pool factory.
-- `apps/api/src/db/apply-schema.ts`: applies `database/schema.sql` (`npm run db:init`).
-- `apps/api/src/auth/`: sessions, cookies, password hashing, validation,
-  `requireAuth`/`requireAdmin` middleware, auth routes, backend tests.
-- `database/schema.sql`: full PostgreSQL schema (users, events, bookings, sessions).
-- `database/seed.ts`: repeatable development seed (`npm run db:seed`).
-- `docs/architecture.md`: enforced constraints and runtime topology.
+## Live links & test accounts
 
-All data access goes through the Express REST API. The frontend never
-connects to the database. No Next.js API routes, route handlers, server
-actions, or Supabase usage from the frontend.
+|         | URL                     |
+| ------- | ----------------------- |
+| Web app | _TODO: live web URL_    |
+| API     | _TODO: live API URL_    |
+| Repo    | _TODO: GitHub repo URL_ |
 
-## Prerequisites
-
-- Node.js >= 20
-- npm
-- Supabase PostgreSQL connection string (backend only)
-
-## Setup
-
-```bash
-npm install
-cp .env.example apps/api/.env
-cp apps/web/.env.example apps/web/.env.local
-# Edit apps/api/.env (DATABASE_URL, FRONTEND_ORIGIN) — no real secrets in repo.
-```
-
-## Run
-
-```bash
-npm run dev:api   # Express on http://localhost:4000, GET /api/health
-npm run dev:web   # Next.js on http://localhost:3000
-```
-
-## Checks
-
-```bash
-npm run typecheck       # tsc --noEmit in both apps
-npm run build           # next build + tsc build
-npm run build:web
-npm run build:api
-npm run typecheck:web
-npm run typecheck:api
-npm run format:check    # prettier check (no changes)
-npm test                # backend auth tests (needs TEST_DATABASE_URL, see below)
-```
-
-## Authentication
-
-Opaque 256-bit session tokens (`crypto.randomBytes(32)`), never JWTs. The raw
-token travels only in an `HttpOnly` cookie; PostgreSQL stores just its SHA-256
-hex hash with a 7-day expiry. Passwords use bcrypt (cost 10, same as the seed).
-
-Endpoints (all JSON, error shape `{ "error": "..." }`):
-
-```bash
-POST /api/auth/register  # {email, password} → 201 {user}, sets cookie (auto-login)
-                         # role is ignored, always 'user'; duplicate → 409
-POST /api/auth/login     # {email, password} → 200 {user}, sets cookie
-                         # unknown or wrong → 401 {error: 'Invalid email or password.'}
-POST /api/auth/logout    # → 200 {status: 'ok'}, revokes session, clears cookie
-GET  /api/auth/me        # → 200 {user} or 401; user = {id, email, role, createdAt, updatedAt}
-```
-
-`password_hash` and session tokens never appear in responses or logs.
-
-Events and bookings (all JSON, same `{ "error": "..." }` shape):
-
-```bash
-GET  /api/events?search=&page=&limit=   # public, upcoming only (+ past_only=true for previous), seatsLeft computed
-GET  /api/events/:id                    # public, any event incl. past
-GET  /api/events/:id/attendees          # admin: confirmed bookings + emails
-POST /api/events                        # admin: {title, description?, venue, starts_at, total_seats}
-PATCH /api/events/:id                   # admin: partial update; seats never below confirmed → 409
-DELETE /api/events/:id                  # admin: rejected with 409 when booking history exists
-POST /api/bookings                      # auth: {event_id} → 201; double/full/past → 409
-GET  /api/bookings/mine                 # auth: own bookings with event facts
-POST /api/bookings/:id/cancel           # auth: own confirmed booking, future events only
-```
-
-Booking and capacity changes run in transactions that lock the event row
-(`SELECT ... FOR UPDATE`), so two concurrent requests for the last seat
-cannot both succeed; the partial unique index remains as a backstop.
-
-Cookies and CORS: cookie `eventbook_session`, `HttpOnly`, `Path=/`, 7-day
-`Max-Age`, `Secure` in production (`NODE_ENV=production`), `SameSite`
-from `COOKIE_SAMESITE` (default `lax`, good for `localhost`; use `none` for
-cross-site production hosting, which requires HTTPS). CORS allows credentials
-only for the exact `FRONTEND_ORIGIN` (never `*`). Browser POSTs to auth
-endpoints additionally pass an `Origin` check against `FRONTEND_ORIGIN`
-(simple CSRF mitigation alongside `SameSite`; curl/Postman send no `Origin`
-and are unaffected). The frontend sends `credentials: 'include'` and never
-touches browser storage for tokens.
-
-Backend tests (`apps/api/src/auth/auth.test.ts`, `node:test` + `fetch`, zero
-new dependencies, real database — nothing mocked except the Express
-req/res objects for the `requireAdmin` unit check):
-
-```bash
-createdb eventbook_test
-TEST_DATABASE_URL=postgresql://postgres@localhost:5432/eventbook_test npm test
-```
-
-Tests apply `schema.sql` themselves and truncate tables between cases. Never
-point `TEST_DATABASE_URL` at production or real data.
-
-Deployment limits: cross-site hosting (e.g. Vercel frontend + Render/Railway
-API) needs `COOKIE_SAMESITE=none`, `NODE_ENV=production` (for `Secure`), and
-`FRONTEND_ORIGIN` set to the exact public frontend URL. `SameSite=None`
-cookies require HTTPS on both sides.
-
-## Database
-
-Only the Express backend talks to PostgreSQL, using `pg` with parameterized
-queries (no ORM). The frontend never sees `DATABASE_URL`.
-
-Tables and relationships:
-
-| Table      | Purpose                                                 | Key constraints                                                                                           |
-| ---------- | ------------------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
-| `users`    | accounts; `role` is `user` or `admin`                   | UUID PK; lowercase-checked unique `email`; bcrypt `password_hash`                                         |
-| `events`   | published events; past dates allowed                    | UUID PK; non-empty `title`/`venue`; `total_seats > 0`; index on `starts_at`                               |
-| `bookings` | one row = one seat; cancel = status flip, never delete  | UUID PK; FKs to users/events `ON DELETE RESTRICT`; partial unique `(user_id, event_id)` where `confirmed` |
-| `sessions` | server-managed logins; stores SHA-256 hex of token only | UUID PK; FK to users `ON DELETE RESTRICT`; unique `token_hash`; indexes on `expires_at`, `user_id`        |
-
-Configure `DATABASE_URL` in `apps/api/.env` (see `apps/api/.env.example`).
-For Supabase, use the project connection string and keep `?sslmode=require`
-if your client does not enable SSL by default. No Supabase dashboard setup is
-needed beyond creating the project and copying its connection string; the
-schema needs no extensions (`gen_random_uuid()` is built in).
-
-Initialize and seed:
-
-```bash
-npm run db:init                    # apply database/schema.sql (repeatable, fails clearly on error)
-ALLOW_DEMO_SEED=true npm run db:seed  # insert development data (explicit opt-in, repeatable)
-```
-
-Local development accounts (**local development only, never production**):
+Seeded logins (created by `npm run db:seed`, same on local and live):
 
 | Role  | Email             | Password    |
 | ----- | ----------------- | ----------- |
 | admin | admin@example.com | `Admin123!` |
 | user  | user@example.com  | `User1234!` |
 
-Only the admin is created by privilege: registration (a later stage) must
-never accept `role='admin'`. The demo user exists so ownership and
-authorization can be tested (each holds bookings the other must not touch).
+These are throwaway demo credentials, not real secrets — they are seeded on
+purpose so the reviewer can log straight in. `admin@example.com` can manage
+events and see attendee lists; `user@example.com` has a couple of bookings to
+play with.
 
-Production seeding is a separate path: with `NODE_ENV=production` it requires
-a strong `SEED_ADMIN_PASSWORD` (min 12 chars, upper/lowercase + digit),
-bootstraps the admin only with no demo data, and never logs the password.
-The local credentials above must never be used in production.
+## Tech stack and why
 
-Seed events (dates are relative to seed time): an upcoming 200-seat meetup,
-an upcoming 3-seat workshop that is nearly full (2 confirmed, 1 seat left),
-an upcoming concert at another venue, and a past event with a historical
-booking. Seed bookings demonstrate confirmed and cancelled statuses,
-including a cancelled-then-rebooked pair with explicit chronology (older
-cancelled `created_at`, newer confirmed `created_at`). The whole seed runs
-in one atomic transaction with rollback on any error.
+| Layer    | Choice                                     | Why                                                                                                                                                                       |
+| -------- | ------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Frontend | Next.js App Router + TypeScript + Tailwind | Required by the brief; App Router keeps data loading in client components talking to the API, with no server-side DB access. Tailwind keeps styling local and consistent. |
+| Backend  | Node.js + Express + TypeScript             | Required (Node option); minimal and explicit, so every route and middleware is visible.                                                                                   |
+| Database | Supabase (PostgreSQL) via `pg`             | Required; `pg` with parameterized SQL instead of an ORM so the schema and the transactional rules are readable directly.                                                  |
+| Auth     | Opaque session cookies (no JWT)            | Server-side sessions can be revoked on logout; JWTs cannot without extra state.                                                                                           |
+| Tests    | Node's built-in `node:test`                | No extra dependencies; runs against a real PostgreSQL database.                                                                                                           |
 
-Event deletion policy: events with any booking history (even cancelled) and
-users with bookings/sessions cannot be deleted (`ON DELETE RESTRICT`). The
-API stage will turn that into a clear error. Sessions are deleted on logout
-or by expiry cleanup.
+## Repository layout
 
-Rule split — enforced by PostgreSQL vs. backend transactions (later stage):
+- `apps/web` — Next.js App Router + TypeScript + Tailwind. Frontend only.
+- `apps/api` — Express + TypeScript, the sole database client.
+  - `src/auth/` — sessions, cookies, password hashing, validation, middleware.
+  - `src/events/`, `src/bookings/` — event and booking routes.
+  - `src/db/pool.ts`, `src/db/apply-schema.ts` — pool factory and `db:init`.
+  - `src/test/helper.ts` — shared integration-test harness.
+- `database/schema.sql` — the full schema.
+- `database/seed.ts` — repeatable seed (`npm run db:seed`).
+- `docs/` — brief, architecture notes, build phases, security analysis.
 
-- PostgreSQL: one confirmed booking per user/event, positive seats, valid
-  roles/statuses, lowercase unique emails, hashed-only session tokens,
-  no silent history deletion.
-- Backend transactions (row-level `SELECT ... FOR UPDATE` on the event):
-  no overbooking under concurrency, capacity never below confirmed count,
-  no booking/cancelling past events, users cancel only their own bookings.
-  A unique index alone cannot prevent overbooking — the check-and-insert
-  must happen inside one locked transaction.
+No Next.js API routes, route handlers, or server actions are used as the
+backend, and the frontend never queries PostgreSQL directly.
+
+## Run locally
+
+Prerequisites: Node.js >= 20, npm, and a PostgreSQL database (local or a free
+Supabase project).
+
+```bash
+npm install
+cp .env.example apps/api/.env            # then edit DATABASE_URL, FRONTEND_ORIGIN
+cp apps/web/.env.example apps/web/.env.local
+
+npm run db:init                          # apply database/schema.sql
+npm run db:seed                          # admin + demo user + sample events/bookings
+
+npm run dev:api                          # Express on http://localhost:4000
+npm run dev:web                          # Next.js on http://localhost:3000
+```
+
+Checks:
+
+```bash
+npm run format:check                     # prettier
+npm run typecheck                        # tsc --noEmit in both apps
+npm run build                            # next build + tsc build
+npm test                                 # backend tests (needs TEST_DATABASE_URL)
+```
+
+Tests need their own database — they create the schema and truncate tables
+between cases, so never point them at real data:
+
+```bash
+createdb eventbook_test
+TEST_DATABASE_URL=postgresql://postgres@localhost:5432/eventbook_test npm test
+```
+
+## Data model
+
+Only the Express API touches PostgreSQL, using parameterized queries.
+
+| Table      | Purpose                                                 | Key constraints                                                                                           |
+| ---------- | ------------------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
+| `users`    | accounts; `role` is `user` or `admin`                   | UUID PK; lowercase-checked unique `email`; bcrypt `password_hash`                                         |
+| `events`   | published events; past dates allowed                    | UUID PK; non-empty `title`/`venue`; `total_seats > 0`; index on `starts_at`                               |
+| `bookings` | one row = one seat; cancel flips status, never deletes  | UUID PK; FKs to users/events `ON DELETE RESTRICT`; partial unique `(user_id, event_id)` where `confirmed` |
+| `sessions` | server-managed logins; stores SHA-256 hash of the token | UUID PK; FK to users `ON DELETE RESTRICT`; unique `token_hash`; indexes on `expires_at`, `user_id`        |
+
+Foreign keys are `ON DELETE RESTRICT` everywhere, so history is never silently
+deleted (this is why an event with bookings cannot be deleted). `seats left` is
+always **derived**: `total_seats` minus the count of confirmed bookings — it is
+never stored, so it cannot drift.
+
+## API
+
+All responses are JSON and errors are `{ "error": "..." }`.
+
+```bash
+POST /api/auth/register        # {email, password} → 201 {user}, sets cookie; duplicate → 409
+POST /api/auth/login           # {email, password} → 200 {user}, sets cookie
+POST /api/auth/logout          # revokes session, clears cookie
+GET  /api/auth/me              # → 200 {user} or 401
+
+GET  /api/events?search=&page=&limit=   # public, upcoming only; server-side pagination
+GET  /api/events/:id                    # public, any event incl. past
+GET  /api/events/:id/attendees          # admin: confirmed bookings + emails
+POST /api/events                        # admin: create
+PATCH /api/events/:id                   # admin: update; seats below confirmed → 409
+DELETE /api/events/:id                  # admin: 409 when booking history exists
+
+POST /api/bookings                      # auth: {event_id} → 201; double/full/past → 409
+GET  /api/bookings/mine                 # auth: own bookings with event facts
+POST /api/bookings/:id/cancel           # auth: own confirmed booking on a future event
+```
+
+## Decisions & trade-offs
+
+**Never overbooking.** The count is `SELECT ... FOR UPDATE` on the event row
+inside a transaction, then the booking is inserted, then the transaction
+commits. Two simultaneous requests for the last seat serialize on the row lock,
+so exactly one succeeds (there is a test for this). The partial unique index
+`(user_id, event_id) WHERE status = 'confirmed'` is a second line of defence for
+the "same event twice" rule. A unique index alone could not stop overbooking —
+the check and the insert must share one locked transaction.
+
+**Cancelling is a status flip, not a delete.** `bookings.status` moves from
+`confirmed` to `cancelled`, which frees the seat (seats-left counts only
+confirmed rows) and allows rebooking, while keeping the audit trail. Cancelling
+a booking on a past event is refused.
+
+**Business rules split.** PostgreSQL enforces invariants that must hold for any
+writer (one confirmed booking per user/event, positive seats, valid
+roles/statuses, lowercase unique emails, hashed-only tokens). The backend
+enforces the rules that need a transaction (no overbooking, capacity not below
+confirmed count, no booking/cancelling past events, cancel your own only).
+Every rule is enforced server-side; the UI only mirrors it for a nicer
+experience.
+
+**Sessions over JWTs.** 256-bit opaque tokens, only their SHA-256 hash stored,
+delivered in an `HttpOnly` cookie (`Secure` in production). Logout deletes the
+row, so revocation is immediate. Passwords use bcrypt.
+
+**Other choices.** Server-side pagination (the frontend never slices a full
+list); a single `{ "error": "..." }` shape with correct status codes and no
+stack traces; the seed is idempotent (fixed ids + upserts) so it can be re-run
+safely; test-account credentials are intentionally public per the brief.
+
+## Security
+
+- Passwords hashed with bcrypt; session tokens stored only as SHA-256 hashes.
+- Protected routes verify the live session on every request; admin routes check
+  `role` from the database, never from the client.
+- `helmet` security headers; JSON bodies capped at 16kb.
+- Login/register are rate-limited (20 attempts / 15 min).
+- Mutating event and booking routes require an `X-Requested-With` header, and
+  auth routes check `Origin` against `FRONTEND_ORIGIN` (CSRF hardening on top of
+  `SameSite` cookies).
+- CORS allows credentials for the exact `FRONTEND_ORIGIN` only, never `*`.
+- Secrets live only in environment variables. `.env` is git-ignored;
+  `.env.example` is committed.
 
 ## Environment
 
 | Variable              | App | Purpose                                                                  |
 | --------------------- | --- | ------------------------------------------------------------------------ |
-| `DATABASE_URL`        | api | Supabase Postgres connection string (backend only)                       |
+| `DATABASE_URL`        | api | PostgreSQL (Supabase) connection string; backend only                    |
 | `FRONTEND_ORIGIN`     | api | Exact allowed CORS origin, e.g. `http://localhost:3000`                  |
 | `COOKIE_SAMESITE`     | api | `lax` (default), `strict`, or `none` (cross-site prod only, needs HTTPS) |
-| `NODE_ENV`            | api | `production` enables `Secure` cookies; anything else means local HTTP    |
+| `NODE_ENV`            | api | `production` enables `Secure` cookies                                    |
 | `PORT`                | api | API port, default `4000`                                                 |
+| `SEED_ADMIN_PASSWORD` | api | Optional override for the seeded admin password                          |
 | `NEXT_PUBLIC_API_URL` | web | Public Express base URL, e.g. `http://localhost:4000`                    |
 
-No secrets are committed (`.env` is ignored).
+## Deployment notes
+
+Cross-site hosting (e.g. Vercel frontend + Render/Railway API) needs
+`COOKIE_SAMESITE=none`, `NODE_ENV=production` (for `Secure` cookies), and
+`FRONTEND_ORIGIN` set to the exact public frontend URL; `SameSite=None`
+requires HTTPS on both sides. The live database is seeded with the same
+`npm run db:seed`, so the test accounts above work there too.
+
+## AI usage
+
+I used an AI coding assistant as a pair-programmer for this project: it helped
+scaffold the Express/Next.js structure, draft route handlers, suggest the
+transaction/`FOR UPDATE` approach for the booking rules, write the integration
+tests, and tighten the wording of this README. I reviewed, ran and debugged
+everything, and I can explain each file. _TODO (before submitting): confirm the
+exact tool names/versions used and trim this paragraph to what actually
+happened._
+
+## Known issues / next steps
+
+- **Deployment.** The live links at the top are the last step. The API and web
+  app are deployed separately; the free API tier may sleep, so the first request
+  can take a few seconds.
+- **Docker Compose** for local development is not set up (a bonus item).
+- **Concurrency** is implemented and covered by a test (two requests for the
+  last seat), and explained under "Decisions & trade-offs".
+- **Rate limiting** is applied to login/register; other endpoints are not
+  limited.
+- The seeded demo credentials are public by design (see above); a real product
+  would rotate them.
+
+## Self-check (from the brief)
+
+- [ ] Register, login, book and cancel work on the live site.
+- [ ] Booking twice, a full event, and a past event each fail with a clear message.
+- [ ] Admin APIs reject a normal user (verified with tests + Postman).
+- [ ] Search and pagination work live.
+- [x] `.env` is not committed, and tests pass with one command.
