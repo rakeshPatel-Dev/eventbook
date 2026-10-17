@@ -9,11 +9,11 @@ Express REST API, and only that API talks to PostgreSQL.
 
 ## Live links & test accounts
 
-|         | URL                     |
-| ------- | ----------------------- |
-| Web app | _TODO: live web URL_    |
-| API     | _TODO: live API URL_    |
-| Repo    | _TODO: GitHub repo URL_ |
+|         | URL                                          |
+| ------- | -------------------------------------------- |
+| Web app | https://eventbook.rakeshpatel.me             |
+| API     | https://api-eventbook.rakeshpatel.me         |
+| Repo    | https://github.com/rakeshPatel-Dev/eventbook |
 
 Seeded logins (created by `npm run db:seed`, same on local and live):
 
