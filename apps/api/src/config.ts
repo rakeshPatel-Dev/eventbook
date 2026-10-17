@@ -25,6 +25,18 @@ function requireEnv(name: string): string {
   return value;
 }
 
+// A misconfigured FRONTEND_ORIGIN (e.g. '*') would silently widen CORS, so
+// refuse anything that is not a full URL.
+function requireUrl(name: string): string {
+  const value = requireEnv(name);
+  try {
+    new URL(value);
+  } catch {
+    throw new Error(`Invalid ${name}: must be a full URL, e.g. https://your-app.vercel.app`);
+  }
+  return value;
+}
+
 function parsePort(value: string | undefined): number {
   if (!value || value.trim() === '') {
     return 4000;
@@ -59,7 +71,7 @@ export function loadConfig(): ApiConfig {
   return {
     port: parsePort(process.env.PORT),
     databaseUrl: requireEnv('DATABASE_URL'),
-    frontendOrigin: requireEnv('FRONTEND_ORIGIN'),
+    frontendOrigin: requireUrl('FRONTEND_ORIGIN'),
     cookieSameSite,
     isProduction,
   };

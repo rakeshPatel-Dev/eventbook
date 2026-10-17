@@ -9,6 +9,7 @@ const app = createApp({
   pool,
   frontendOrigin: config.frontendOrigin,
   cookie: { sameSite: config.cookieSameSite, secure: config.isProduction },
+  trustProxy: config.isProduction,
 });
 
 const server: Server = app.listen(config.port, () => {

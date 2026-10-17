@@ -11,11 +11,20 @@ export interface AppOptions {
   pool: Pool;
   frontendOrigin: string;
   cookie: CookieConfig;
+  /** Trust the first proxy hop (Render) so req.ip / X-Forwarded-Proto are read. */
+  trustProxy?: boolean;
 }
 
 export function createApp(options: AppOptions): express.Express {
-  const { pool, frontendOrigin, cookie } = options;
+  const { pool, frontendOrigin, cookie, trustProxy } = options;
   const app = express();
+
+  // Render terminates TLS at its proxy. Trusting one hop makes rate limiting
+  // see the real client IP (not the proxy's) and req.secure reflect the
+  // forwarded scheme. Off locally, where requests arrive directly.
+  if (trustProxy) {
+    app.set('trust proxy', 1);
+  }
 
   // Security headers (X-Content-Type-Options, X-Frame-Options, HSTS, etc.)
   app.use(helmet());
