@@ -112,7 +112,9 @@ POST /api/auth/login           # {email, password} → 200 {user}, sets cookie
 POST /api/auth/logout          # revokes session, clears cookie
 GET  /api/auth/me              # → 200 {user} or 401
 
+GET  /api/health                        # liveness probe → 200 {status}
 GET  /api/events?search=&page=&limit=   # public, upcoming only; server-side pagination
+GET  /api/events?scope=all              # admin: every event, past included
 GET  /api/events/:id                    # public, any event incl. past
 GET  /api/events/:id/attendees          # admin: confirmed bookings + emails
 POST /api/events                        # admin: create
@@ -163,9 +165,9 @@ safely; test-account credentials are intentionally public per the brief.
   `role` from the database, never from the client.
 - `helmet` security headers; JSON bodies capped at 16kb.
 - Login/register are rate-limited (20 attempts / 15 min).
-- Mutating event and booking routes require an `X-Requested-With` header, and
-  auth routes check `Origin` against `FRONTEND_ORIGIN` (CSRF hardening on top of
-  `SameSite` cookies).
+- Mutating event and booking routes check `Origin` against `FRONTEND_ORIGIN` and
+  require an `X-Requested-With` header; auth routes check `Origin` too (CSRF
+  hardening on top of `SameSite` cookies).
 - CORS allows credentials for the exact `FRONTEND_ORIGIN` only, never `*`.
 - Secrets live only in environment variables. `.env` is git-ignored;
   `.env.example` is committed.
@@ -246,7 +248,7 @@ I used two AI tools, in different roles:
 
 ## Self-check (from the brief)
 
-Verified against the live deployment with a 53-check API suite (all pass):
+Verified against the live deployment (by hand and with scripted API checks):
 
 - [x] Register, login, book and cancel work on the live site.
 - [x] Booking twice, a full event, and a past event each fail with a clear message.
