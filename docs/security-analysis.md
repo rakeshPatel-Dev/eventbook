@@ -40,7 +40,7 @@ If this file were ever accidentally pushed (e.g. via `git add .`), the password 
 **Fixes:**
 
 - Immediately rotate the Supabase database password.
-- Change `sslmode=no-verify` to `sslmode=require` (or `verify-full` for maximum security).
+- Do not simply switch to `sslmode=require`: Supabase's root CA is self-signed, so Node fails with `SELF_SIGNED_CERT_IN_CHAIN`. To keep verification, supply the CA with `sslrootcert` (`sslmode=verify-full`); otherwise `sslmode=no-verify` still encrypts the traffic but does not verify the server.
 - Consider adding Supabase's trusted IP restrictions in the dashboard.
 - For production, use separate DB credentials with minimum necessary privileges (not the `postgres` superuser).
 
@@ -461,25 +461,25 @@ The codebase demonstrates solid security thinking across the board:
 
 ## 7. Remediation Priority Checklist
 
-| Priority                      | Issue                                                        | Effort |
-| ----------------------------- | ------------------------------------------------------------ | ------ |
-| 🔴 **Immediate**              | [CRIT-01] Rotate Supabase password, fix `sslmode=no-verify`  | 5 min  |
-| 🟠 **Before live submission** | [HIGH-01] Add `helmet` middleware                            | 10 min |
-| 🟠 **Before live submission** | [HIGH-02] Add rate limiting on auth endpoints                | 15 min |
-| 🟠 **Before live submission** | [HIGH-04] Fix admin event list pagination (currently cap 50) | 30 min |
-| 🟠 **Before live submission** | [BUG-08] Commit all uncommitted frontend + seed work         | 5 min  |
-| 🟡 **Nice to have**           | [MED-02] Wrap cancel in transaction with `FOR UPDATE`        | 20 min |
-| 🟡 **Nice to have**           | [MED-04] Clamp `seatsLeft` to `>=0` in API response          | 5 min  |
-| 🟡 **Nice to have**           | [MED-05] Replace `window.confirm` with custom modal          | 20 min |
-| 🔵 **Polish**                 | [BUG-04] Per-event `attendeeError` state in admin            | 10 min |
-| 🔵 **Polish**                 | [BUG-05] Post-login redirect to originating page             | 20 min |
-| 🔵 **Polish**                 | [BUG-03] Skip `/api/bookings/mine` on unauthenticated pages  | 10 min |
-| ℹ️ **Hardening**              | [INFO-01] Add CSP headers via `next.config.ts`               | 15 min |
-| ℹ️ **Hardening**              | [INFO-02] Schedule `sessions` table expiry cleanup           | 15 min |
-| ℹ️ **Hardening**              | [INFO-05] Validate `FRONTEND_ORIGIN` is a valid URL          | 5 min  |
-| ℹ️ **Hardening**              | [HIGH-03] Set `express.json({ limit: '16kb' })`              | 2 min  |
-| ℹ️ **Hardening**              | [BUG-02] Move `requireOrigin` before DB middleware           | 5 min  |
-| ℹ️ **Hardening**              | [BUG-01] Remove plaintext passwords from seed log output     | 2 min  |
+| Priority                      | Issue                                                            | Effort |
+| ----------------------------- | ---------------------------------------------------------------- | ------ |
+| 🔴 **Immediate**              | [CRIT-01] Rotate Supabase password; verify TLS via CA if desired | 5 min  |
+| 🟠 **Before live submission** | [HIGH-01] Add `helmet` middleware                                | 10 min |
+| 🟠 **Before live submission** | [HIGH-02] Add rate limiting on auth endpoints                    | 15 min |
+| 🟠 **Before live submission** | [HIGH-04] Fix admin event list pagination (currently cap 50)     | 30 min |
+| 🟠 **Before live submission** | [BUG-08] Commit all uncommitted frontend + seed work             | 5 min  |
+| 🟡 **Nice to have**           | [MED-02] Wrap cancel in transaction with `FOR UPDATE`            | 20 min |
+| 🟡 **Nice to have**           | [MED-04] Clamp `seatsLeft` to `>=0` in API response              | 5 min  |
+| 🟡 **Nice to have**           | [MED-05] Replace `window.confirm` with custom modal              | 20 min |
+| 🔵 **Polish**                 | [BUG-04] Per-event `attendeeError` state in admin                | 10 min |
+| 🔵 **Polish**                 | [BUG-05] Post-login redirect to originating page                 | 20 min |
+| 🔵 **Polish**                 | [BUG-03] Skip `/api/bookings/mine` on unauthenticated pages      | 10 min |
+| ℹ️ **Hardening**              | [INFO-01] Add CSP headers via `next.config.ts`                   | 15 min |
+| ℹ️ **Hardening**              | [INFO-02] Schedule `sessions` table expiry cleanup               | 15 min |
+| ℹ️ **Hardening**              | [INFO-05] Validate `FRONTEND_ORIGIN` is a valid URL              | 5 min  |
+| ℹ️ **Hardening**              | [HIGH-03] Set `express.json({ limit: '16kb' })`                  | 2 min  |
+| ℹ️ **Hardening**              | [BUG-02] Move `requireOrigin` before DB middleware               | 5 min  |
+| ℹ️ **Hardening**              | [BUG-01] Remove plaintext passwords from seed log output         | 2 min  |
 
 ---
 

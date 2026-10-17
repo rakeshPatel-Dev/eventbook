@@ -187,12 +187,13 @@ safely; test-account credentials are intentionally public per the brief.
 Three pieces: **Supabase** (PostgreSQL), **Render** (Express API), **Vercel**
 (Next.js web app). `render.yaml` is a blueprint for the API service.
 
-1. **Database (Supabase).** Create a project, copy its connection string, and
-   append `?sslmode=require` (do not disable certificate verification). Apply
-   the schema and seed it once:
+1. **Database (Supabase).** Create a project and copy its connection string,
+   appending `?sslmode=no-verify` — Supabase's root CA is self-signed, so Node
+   rejects `sslmode=require` (`SELF_SIGNED_CERT_IN_CHAIN`). Apply the schema and
+   seed it once:
 
    ```bash
-   export DATABASE_URL='postgresql://postgres:<password>@db.<ref>.supabase.co:5432/postgres?sslmode=require'
+   export DATABASE_URL='postgresql://postgres:<password>@db.<ref>.supabase.co:5432/postgres?sslmode=no-verify'
    npm run db:init
    npm run db:seed
    ```
