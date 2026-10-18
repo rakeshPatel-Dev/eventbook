@@ -19,6 +19,13 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
+      <head>
+        <script
+          defer
+          src="https://cloud.umami.is/script.js"
+          data-website-id="dcbedaa5-5243-47e1-86be-10163fba56ee"
+        />
+      </head>
       <body className={`${geist.className} ${display.variable} antialiased`}>
         <ToastProvider>
           <MyBookingsProvider>{children}</MyBookingsProvider>
